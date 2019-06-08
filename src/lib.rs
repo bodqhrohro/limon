@@ -72,7 +72,18 @@ mod tests {
     #[test]
     fn output_plain_no_markup() {
         let text = output_plain(_two_test_lines());
-        assert_eq!(2, 2);
+        let mut lines = text.lines();
+
+        let langular = Some('<');
+        let rangular = Some('>');
+
+        let mut line = lines.next().expect("No first line").chars();
+        assert_ne!(line.next(), langular);
+        assert_ne!(line.last(), rangular);
+
+        let mut line = lines.last().expect("No last line").chars();
+        assert_ne!(line.next(), langular);
+        assert_ne!(line.last(), rangular);
     }
 
     #[test]
