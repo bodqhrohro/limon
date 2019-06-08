@@ -2,6 +2,8 @@ extern crate itertools;
 
 use itertools::free::join;
 
+const ICON_WIDTH: usize = 1;
+
 enum OutputMode {
     PLAIN,
     PANGO,
@@ -9,6 +11,8 @@ enum OutputMode {
 
 pub struct LimonItem {
     icon: char,
+    pre_spaces: usize,
+    post_spaces: usize,
     value: String,
 }
 
@@ -22,8 +26,13 @@ pub fn output_pango(items: Vec<LimonItem>, font_size: u16) -> String {
 
 fn output(mode: OutputMode, items: Vec<LimonItem>, font_size: Option<u16>) -> String {
     let mut text = join(items.iter().map(|item| {
-        "tist\n"
-    }), &",");
+        format!(
+            "{:<width$}{}\n",
+            format!("{:>width$}", item.icon, width = item.pre_spaces + ICON_WIDTH),
+            item.value,
+            width = item.post_spaces + ICON_WIDTH + item.pre_spaces,
+        )
+    }), &"");
 
     if let OutputMode::PANGO = mode {
         text.insert_str(0, &format!("<txt><span font='FontAwesome {}'>\n", font_size.expect("Font size not provided")));
@@ -41,8 +50,8 @@ mod tests {
 
     fn _two_test_lines() -> Vec<LimonItem> {
         vec!(
-            LimonItem { icon: 'a', value: "tist".to_string(), },
-            LimonItem { icon: 'b', value: "zizd".to_string(), },
+            LimonItem { icon: 'a', value: "tist".to_string(), pre_spaces: 0, post_spaces: 8 },
+            LimonItem { icon: 'b', value: "zizd".to_string(), pre_spaces: 1, post_spaces: 4 },
         )
     }
 
@@ -64,5 +73,28 @@ mod tests {
     fn output_plain_no_markup() {
         let text = output_plain(_two_test_lines());
         assert_eq!(2, 2);
+    }
+
+    #[test]
+    fn output_verify_spaces() {
+        let text = output_plain(_two_test_lines());
+        let mut lines = text.lines();
+
+        let space = Some(' ');
+
+        let mut line1 = lines.next().expect("No line 1").chars();
+        assert_ne!(line1.next(), space);
+        assert_eq!(line1.next(), space);
+        assert_eq!(line1.nth(6), space);
+        assert_ne!(line1.next(), space);
+        assert_ne!(line1.last(), space);
+
+        let mut line2 = lines.next().expect("No line 2").chars();
+        assert_eq!(line2.next(), space);
+        assert_ne!(line2.next(), space);
+        assert_eq!(line2.next(), space);
+        assert_eq!(line2.nth(2), space);
+        assert_ne!(line2.next(), space);
+        assert_ne!(line2.last(), space);
     }
 }
