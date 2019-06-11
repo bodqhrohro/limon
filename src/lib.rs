@@ -2,6 +2,8 @@ extern crate itertools;
 
 use itertools::free::join;
 
+pub mod commands;
+
 const ICON_WIDTH: usize = 1;
 
 enum OutputMode {
@@ -42,6 +44,20 @@ fn output(mode: OutputMode, items: Vec<LimonItem>, font_size: Option<u16>) -> St
     print!("{}", text);
 
     text
+}
+
+pub fn exec_command(command: &commands::Command, arguments: &[&str]) -> LimonItem {
+    let result = (command.call)(arguments);
+
+    LimonItem {
+        icon: command.icon,
+        value: match result {
+            Some(v) => v,
+            None => "#ERROR#".to_string(),
+        },
+        pre_spaces: 0,
+        post_spaces: 6,
+    }
 }
 
 #[cfg(test)]

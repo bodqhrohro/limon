@@ -4,5 +4,13 @@ version = "0.1.0"
 authors = ["bodqhrohro <bodqhrohro@yandex.ru>"]
 edition = "2018"
 
+[lib]
+name = "limonlib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "limonbin"
+path = "src/bin.rs"
+
 [dependencies]
 itertools = "*"
