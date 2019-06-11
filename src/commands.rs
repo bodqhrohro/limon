@@ -1,3 +1,5 @@
+extern crate procfs;
+
 pub struct Command
 {
     pub icon: char,
@@ -7,6 +9,10 @@ pub struct Command
 pub const LOADAVG:Command = Command {
     icon: '',
     call: |_| {
-        Some("tist".to_string())
+        let la = procfs::LoadAverage::new();
+        match la {
+            Ok(la) => Some(format!("{:.2} {:.2}", la.one, la.five)),
+            Err(_) => None,
+        }
     },
 };
