@@ -172,3 +172,21 @@ pub const CPU:Command = Command {
         }
     },
 };
+
+lazy_static! {
+    static ref MEMINFO: procfs::ProcResult<procfs::Meminfo> = procfs::meminfo();
+}
+pub const MEM:Command = Command {
+    icon: '',
+    call: |_| {
+        match &*MEMINFO {
+            Ok(meminfo) => {
+                let mem_available = meminfo.mem_available.unwrap_or(0) / 1024 / 1024;
+                let mem_total = meminfo.mem_total / 1024 / 1024;
+
+                Some(format!("{}/{}M", mem_total - mem_available, mem_total))
+            },
+            Err(_) => None,
+        }
+    },
+};
