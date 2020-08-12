@@ -53,25 +53,38 @@ fn persist_state(name: &str, save: &str) -> io::Result<String> {
     Ok(prev_state)
 }
 
-lazy_static! {
-    static ref CPUFREQ_BOUNDARY_1: f32 = 1100.0;
-    static ref CPUFREQ_BOUNDARY_2: f32 = 1375.0;
+fn read_u32_from_file(filename: &str) -> io::Result<u32> {
+    let mut file = fs::File::open(filename)?;
+    let mut contents = String::new();
+
+    file.read_to_string(&mut contents)?;
+
+    if contents.ends_with('\n') {
+        contents.pop();
+    }
+
+    match u32::from_str(&contents) {
+        Ok(number) => Ok(number),
+        Err(e) => Err(io::Error::new(io::ErrorKind::InvalidInput, e))
+    }
 }
-fn cpu_freq_icon(cpu_no: usize) -> procfs::ProcResult<String> {
-    let cpuinfo = procfs::cpuinfo()?;
-    match cpuinfo.get_info(cpu_no) {
-        Some(fields) => match fields.get("cpu MHz") {
-            Some(freq) => {
-                match freq.parse::<f32>() {
-                    Ok(freq) if freq < *CPUFREQ_BOUNDARY_1 => Ok("·".to_string()),
-                    Ok(freq) if freq > *CPUFREQ_BOUNDARY_2 => Ok("⁝".to_string()),
-                    Ok(_) => Ok("⁚".to_string()),
-                    Err(_) => Err(procfs::ProcError::Other("Malformed CPU frequency".to_string()))
-                }
-            },
-            None => Err(procfs::ProcError::Other("CPU does not report its frequency".to_string()))
-        },
-        None => Err(procfs::ProcError::Other("No such CPU".to_string()))
+
+fn cpu_freq_icon(cpu_no: &str) -> io::Result<String> {
+    let path_base = "/sys/devices/system/cpu/cpufreq/policy".to_string() + cpu_no;
+
+    let min_freq = read_u32_from_file(&(path_base.to_string() + "/cpuinfo_min_freq"))?;
+    let max_freq = read_u32_from_file(&(path_base.to_string() + "/cpuinfo_max_freq"))?;
+    let cur_freq = read_u32_from_file(&(path_base + "/scaling_cur_freq"))?;
+
+    let boundary1 = min_freq + (max_freq - min_freq) / 3;
+    let boundary2 = min_freq + (max_freq - min_freq) * 2 / 3;
+
+    if cur_freq < boundary1 {
+        Ok("·".to_string())
+    } else if cur_freq > boundary2 {
+        Ok("⁝".to_string())
+    } else {
+        Ok("⁚".to_string())
     }
 }
 
@@ -124,7 +137,7 @@ pub const CPU:Command = Command {
                                             Ok(old_state) => {
                                                 let old_state: Vec<&str> = old_state.split(" ").collect();
                                                 if old_state.len() == 2 {
-                                                    let cpu_no = caps.get(1).unwrap().as_str().parse::<usize>().unwrap_or(0);
+                                                    let cpu_no = caps.get(1).unwrap().as_str();
 
                                                     let old_used = Decimal::from_str(old_state[0])?;
                                                     let old_total = Decimal::from_str(old_state[1])?;
