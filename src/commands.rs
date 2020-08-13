@@ -141,11 +141,15 @@ pub const CPU:Command = Command {
 
                                                     let old_used = Decimal::from_str(old_state[0])?;
                                                     let old_total = Decimal::from_str(old_state[1])?;
-                                                    cpuinfos.push(format!(
-                                                        "{}{:.0}%",
-                                                        cpu_freq_icon(cpu_no).unwrap_or("".to_string()),
-                                                        *DECIMAL_100 * (used - old_used) / (total - old_total)
-                                                    ));
+                                                    cpuinfos.push(if total > old_total {
+                                                        format!(
+                                                            "{}{:.0}%",
+                                                            cpu_freq_icon(cpu_no).unwrap_or("".to_string()),
+                                                            *DECIMAL_100 * (used - old_used) / (total - old_total)
+                                                        )
+                                                    } else {
+                                                        "?".to_string()
+                                                    });
                                                 }
                                             },
                                             Err(_) => {}
