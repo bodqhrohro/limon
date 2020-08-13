@@ -247,6 +247,43 @@ pub const MEM:Command = Command {
     },
 };
 
+pub const ZRAM:Command = Command {
+    icon: '',
+    call: |_| {
+        match &*MEMINFO {
+            Ok(meminfo) => {
+                let swap_free = meminfo.swap_free;
+                let swap_total = meminfo.swap_total;
+
+                let mut total_comp: u64 = 0;
+
+                for i in 0.. {
+                    match fs::File::open("/sys/devices/virtual/block/zram".to_string() + &i.to_string() + "/mm_stat") {
+                        Ok(mut stat_file) => {
+                            let mut contents = String::new();
+
+                            if let Ok(_) = stat_file.read_to_string(&mut contents) {
+                                let a: Vec<&str> = contents.split(" ").collect();
+                                if a.len() >= 2 {
+                                    if let Ok(comp) = u64::from_str(a[1]) {
+                                        total_comp += comp;
+                                    }
+                                }
+                            }
+                        },
+                        // assume that the numeration is contiguous, so if the file
+                        // on this interation can't be opened then all they were passed
+                        Err(_) => { break; }
+                    }
+                }
+
+                Some(format_two_amounts(total_comp, swap_total - swap_free, ":"))
+            },
+            Err(_) => None,
+        }
+    },
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
