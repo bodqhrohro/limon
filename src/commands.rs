@@ -3,6 +3,7 @@ extern crate lazy_static;
 extern crate linereader;
 extern crate regex;
 extern crate rust_decimal;
+extern crate once_cell;
 
 use std::env;
 use std::fs;
@@ -17,6 +18,7 @@ use lazy_static::lazy_static;
 use linereader::LineReader;
 use regex::Regex;
 use rust_decimal::Decimal;
+use once_cell::sync::OnceCell;
 
 pub struct Command
 {
@@ -40,6 +42,12 @@ lazy_static! {
             Err(_) => env::temp_dir(),
         }).expect("")
     };
+}
+
+fn trim_trailing_newline(s: &mut String) -> () {
+    if s.ends_with('\n') {
+        s.pop();
+    }
 }
 
 fn persist_state(name: &str, save: &str) -> io::Result<String> {
@@ -67,9 +75,7 @@ fn read_u32_from_file(filename: &str) -> io::Result<u32> {
 
     file.read_to_string(&mut contents)?;
 
-    if contents.ends_with('\n') {
-        contents.pop();
-    }
+    trim_trailing_newline(&mut contents);
 
     match u32::from_str(&contents) {
         Ok(number) => Ok(number),
@@ -141,6 +147,99 @@ fn format_two_amounts(a1: u64, a2: u64, separator: &str) -> String {
     format_amount(Decimal::from(a1) / bearer_ceil) + separator +
         &format_amount(Decimal::from(a2) / bearer_ceil) + bearer_suffix
 }
+
+#[derive(Clone)]
+struct Traffic {
+    rx: u64,
+    tx: u64,
+    rx_string: String,
+    tx_string: String,
+    iface: String,
+}
+type MaybeTraffic = Result<Traffic, String>;
+static RX_TX: OnceCell<MaybeTraffic> = OnceCell::new();
+
+fn fetch_traffic(iface: &str) -> MaybeTraffic {
+    let path_base = "/sys/class/net/".to_string() + iface + "/statistics/";
+
+    // read rx
+    match fs::File::open(path_base.to_owned() + "rx_bytes") {
+        Ok(mut rx_file) => {
+            let mut rx_string = String::new();
+            if let Ok(_) = rx_file.read_to_string(&mut rx_string) {
+                trim_trailing_newline(&mut rx_string);
+                // read tx
+                if let Ok(mut tx_file) = fs::File::open(path_base + "tx_bytes") {
+                    let mut tx_string = String::new();
+                    if let Ok(_) = tx_file.read_to_string(&mut tx_string) {
+                        trim_trailing_newline(&mut tx_string);
+
+                        if let Ok(result) = || -> Result<Traffic, std::num::ParseIntError> {
+                            let rx = u64::from_str(&rx_string)?;
+                            let tx = u64::from_str(&tx_string)?;
+
+                            Ok(Traffic {
+                                rx: rx,
+                                tx: tx,
+                                rx_string: rx_string,
+                                tx_string: tx_string,
+                                iface: iface.to_string(),
+                            })
+                        }() {
+                            return Ok(result);
+                        }
+                    }
+                }
+            }
+        },
+        Err(_) => {
+            // reference to http://web.archive.org/web/20130430040505/http://promodj.com/cybersatan/tracks/4073655/ZB_CyberSatan_TDPLM_Akti_2_3_Otkrovenie_i_Problemi_s_Setyu :)
+            return Err("Дисконнект, б**".to_string())
+        }
+    }
+
+    Err("".to_string())
+}
+
+fn update_traffic(iface: &str) -> MaybeTraffic {
+    let traffic = fetch_traffic(iface);
+
+    // Err means that the cell isn't empty, ignore it
+    match RX_TX.set(traffic.clone()) {
+        Ok(_) => {},
+        Err(_) => {}
+    }
+
+    traffic
+}
+
+fn fetch_traffic_cached(iface: &str) -> MaybeTraffic {
+    match RX_TX.get() {
+        Some(rx_tx) => {
+            match (*rx_tx).clone() {
+                Ok(rx_tx) => {
+                    // return the cached result
+                    if rx_tx.iface == iface {
+                        Ok(rx_tx)
+                    // fetch for another interface, don't touch the cache
+                    } else {
+                        fetch_traffic(iface)
+                    }
+                },
+                // fetched with an error first time, try again
+                Err(_) => {
+                    update_traffic(iface)
+                }
+            }
+        },
+        // wasn't fetched yet, fetch and cache
+        None => {
+            update_traffic(iface)
+        }
+    }
+}
+
+
 
 pub const LOADAVG:Command = Command {
     icon: '',
@@ -321,6 +420,59 @@ pub const RADEON_VRAM:Command = Command {
         }
 
         None
+    },
+};
+
+pub const TRAFFIC:Command = Command {
+    icon: '',
+    call: |args| {
+        if args.len() < 1 {
+            return None;
+        }
+
+        let traffic = fetch_traffic_cached(args[0]);
+
+        match traffic {
+            Ok(traffic) => Some(format_two_amounts(traffic.rx, traffic.tx, ":")),
+            Err(msg) => Some(msg)
+        }
+    },
+};
+
+pub const NETWORK_SPEED:Command = Command {
+    icon: '',
+    call: |args| {
+        if args.len() < 1 {
+            return None;
+        }
+
+        let traffic = fetch_traffic_cached(args[0]);
+
+        match traffic {
+            Ok(traffic) => {
+                // save anyway, display only if there was an old state
+                let new_state = format!("{} {}", traffic.rx_string, traffic.tx_string);
+                if let Ok(old_state) = persist_state("network-speed-stat", &new_state) {
+                    let old_state: Vec<&str> = old_state.split(" ").collect();
+                    if old_state.len() == 2 {
+                        if let Ok(result) = || -> Result<String, std::num::ParseIntError> {
+                            let new_rx = traffic.rx;
+                            let new_tx = traffic.tx;
+                            let old_rx = u64::from_str(old_state[0])?;
+                            let old_tx = u64::from_str(old_state[1])?;
+
+                            // TODO: fix a possible panic here
+                            Ok(format_two_amounts(new_rx - old_rx, new_tx - old_tx, ":"))
+                        }() {
+                            return Some(result);
+                        }
+                    }
+                }
+
+                None
+            },
+            Err(msg) => Some(msg)
+        }
     },
 };
 
