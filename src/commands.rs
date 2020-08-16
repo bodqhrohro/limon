@@ -4,6 +4,7 @@ extern crate linereader;
 extern crate regex;
 extern crate rust_decimal;
 extern crate once_cell;
+extern crate sensors;
 
 use std::env;
 use std::fs;
@@ -19,6 +20,7 @@ use linereader::LineReader;
 use regex::Regex;
 use rust_decimal::Decimal;
 use once_cell::sync::OnceCell;
+use sensors::Sensors;
 
 pub struct Command
 {
@@ -236,6 +238,32 @@ fn fetch_traffic_cached(iface: &str) -> MaybeTraffic {
         None => {
             update_traffic(iface)
         }
+    }
+}
+
+lazy_static! {
+    static ref SENSORS: Sensors = Sensors::new();
+}
+fn get_chip_temperature(chip_name: &str, temperature_name: &str) -> Option<String> {
+    match (*SENSORS).detected_chips(chip_name) {
+        Ok(mut chip_iter) => {
+            // just pick the first chip there
+            let chip = chip_iter.next();
+            match chip {
+                Some(chip) => match chip.into_iter().find(|feat| feat.name() == temperature_name) {
+                    Some(feat) => match feat.get_subfeature(sensors::SubfeatureType::SENSORS_SUBFEATURE_TEMP_INPUT) {
+                        Some(subfeat) => match subfeat.get_value() {
+                            Ok(value) => Some(format!("{:+.1}°C", value)),
+                            Err(_) => None
+                        },
+                        None => None
+                    },
+                    None => None
+                },
+                None => None
+            }
+        },
+        Err(_) => None
     }
 }
 
@@ -473,6 +501,20 @@ pub const NETWORK_SPEED:Command = Command {
             },
             Err(msg) => Some(msg)
         }
+    },
+};
+
+pub const RADEON_TEMPERATURE:Command = Command {
+    icon: '',
+    call: |_| {
+        get_chip_temperature("radeon-pci-0100", "temp1")
+    },
+};
+
+pub const AMD_K10_TEMPERATURE:Command = Command {
+    icon: '',
+    call: |_| {
+        get_chip_temperature("k10temp-pci-00c3", "temp1")
     },
 };
 
