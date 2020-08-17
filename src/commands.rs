@@ -5,6 +5,7 @@ extern crate regex;
 extern crate rust_decimal;
 extern crate once_cell;
 extern crate sensors;
+extern crate hdd;
 
 use std::env;
 use std::fs;
@@ -21,6 +22,10 @@ use regex::Regex;
 use rust_decimal::Decimal;
 use once_cell::sync::OnceCell;
 use sensors::Sensors;
+use hdd::ata::ATADevice;
+use hdd::scsi::SCSIDevice;
+use hdd::ata::misc::Misc;
+use hdd::ata::data::attr::raw::Raw as HDDRaw;
 
 pub struct Command
 {
@@ -29,6 +34,7 @@ pub struct Command
 }
 
 const FILE_PREFIX: &str = ".limon-";
+macro_rules! TEMPERATURE_FORMAT { () => { "{:+.1}°C" }; }
 
 lazy_static! {
     static ref DECIMAL_0: Decimal = Decimal::from(0);
@@ -253,7 +259,7 @@ fn get_chip_temperature(chip_name: &str, temperature_name: &str) -> Option<Strin
                 Some(chip) => match chip.into_iter().find(|feat| feat.name() == temperature_name) {
                     Some(feat) => match feat.get_subfeature(sensors::SubfeatureType::SENSORS_SUBFEATURE_TEMP_INPUT) {
                         Some(subfeat) => match subfeat.get_value() {
-                            Ok(value) => Some(format!("{:+.1}°C", value)),
+                            Ok(value) => Some(format!(TEMPERATURE_FORMAT!(), value)),
                             Err(_) => None
                         },
                         None => None
@@ -515,6 +521,34 @@ pub const AMD_K10_TEMPERATURE:Command = Command {
     icon: '',
     call: |_| {
         get_chip_temperature("k10temp-pci-00c3", "temp1")
+    },
+};
+
+const TEMPERATURE_CELSIUS: u8 = 194;
+pub const ATA_HDDTEMP:Command = Command {
+    icon: '',
+    call: |args| {
+        if args.len() < 1 {
+            return None;
+        }
+
+        if let Ok(device) = hdd::device::linux::Device::open(args[0]) {
+            let ata_device = ATADevice::new(SCSIDevice::new(device));
+            if let Ok(attrs) = ata_device.get_smart_attributes(&None) {
+                if let Some(attr) = attrs.iter().find(|attr| attr.id == TEMPERATURE_CELSIUS) {
+                    return match attr.raw {
+                        HDDRaw::CelsiusMinMax{current, ..} =>
+                            return Some(format!(TEMPERATURE_FORMAT!(), current as f64)),
+                        // the value seems to be 0x00000max0min0cur
+                        HDDRaw::Raw64(raw) =>
+                            return Some(format!(TEMPERATURE_FORMAT!(), (raw & 0xff) as f64)),
+                        _ => None
+                    }
+                }
+            }
+        }
+
+        None
     },
 };
 

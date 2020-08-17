@@ -2,6 +2,10 @@ This is a more efficient and flexible replacement of my Bash spaghetti made for 
 
 The name is an abbreviation of Li(nux) + Mon(itor), and „lemon“ in Russian.
 
-# Build
+# Prerequisitions
 
 Requires `libsensors`.
+
+The `ATA_HDDTEMP` command requires root permissions to work.
+
+Some icons require `Font Awesome` to be installed.
