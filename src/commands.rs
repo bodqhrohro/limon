@@ -823,4 +823,18 @@ mod tests {
         let signal = show_dbms(40);
         assert_eq!(signal, "▁▂▃▄▅");
     }
+
+    #[test]
+    fn trim_newline() {
+        let mut s = "a\nb\n".to_string();
+        trim_trailing_newline(&mut s);
+        assert_eq!(s, "a\nb".to_string());
+    }
+
+    #[test]
+    fn trim_no_newline() {
+        let mut s = "a\nb\nc".to_string();
+        trim_trailing_newline(&mut s);
+        assert_eq!(s, "a\nb\nc".to_string());
+    }
 }
