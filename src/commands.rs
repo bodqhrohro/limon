@@ -11,7 +11,7 @@ use std::env;
 use std::fs;
 use std::path;
 use std::io;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::str::FromStr;
 use std::collections::BTreeMap;
 use std::process;
@@ -66,9 +66,8 @@ fn persist_state(name: &str, save: &str) -> io::Result<String> {
     let mut prev_state = String::new();
 
     // nothing bad if the file doesn't exist, just return an empty state
-    let old_file = fs::File::open(file_path);
-    if let Ok(mut old_file) = old_file {
-        old_file.read_to_string(&mut prev_state)?;
+    if let Ok(contents) = fs::read_to_string(file_path) {
+        prev_state = contents;
     }
 
     let new_file = fs::File::create(file_path)?;
@@ -78,10 +77,7 @@ fn persist_state(name: &str, save: &str) -> io::Result<String> {
 }
 
 fn read_u32_from_file(filename: &str) -> io::Result<u32> {
-    let mut file = fs::File::open(filename)?;
-    let mut contents = String::new();
-
-    file.read_to_string(&mut contents)?;
+    let mut contents = fs::read_to_string(filename)?;
 
     trim_trailing_newline(&mut contents);
 
@@ -171,32 +167,26 @@ fn fetch_traffic(iface: &str) -> MaybeTraffic {
     let path_base = "/sys/class/net/".to_string() + iface + "/statistics/";
 
     // read rx
-    match fs::File::open(path_base.to_owned() + "rx_bytes") {
-        Ok(mut rx_file) => {
-            let mut rx_string = String::new();
-            if let Ok(_) = rx_file.read_to_string(&mut rx_string) {
-                trim_trailing_newline(&mut rx_string);
-                // read tx
-                if let Ok(mut tx_file) = fs::File::open(path_base + "tx_bytes") {
-                    let mut tx_string = String::new();
-                    if let Ok(_) = tx_file.read_to_string(&mut tx_string) {
-                        trim_trailing_newline(&mut tx_string);
+    match fs::read_to_string(path_base.to_owned() + "rx_bytes") {
+        Ok(mut rx_string) => {
+            trim_trailing_newline(&mut rx_string);
+            // read tx
+            if let Ok(mut tx_string) = fs::read_to_string(path_base + "tx_bytes") {
+                trim_trailing_newline(&mut tx_string);
 
-                        if let Ok(result) = || -> Result<Traffic, std::num::ParseIntError> {
-                            let rx = u64::from_str(&rx_string)?;
-                            let tx = u64::from_str(&tx_string)?;
+                if let Ok(result) = || -> Result<Traffic, std::num::ParseIntError> {
+                    let rx = u64::from_str(&rx_string)?;
+                    let tx = u64::from_str(&tx_string)?;
 
-                            Ok(Traffic {
-                                rx: rx,
-                                tx: tx,
-                                rx_string: rx_string,
-                                tx_string: tx_string,
-                                iface: iface.to_string(),
-                            })
-                        }() {
-                            return Ok(result);
-                        }
-                    }
+                    Ok(Traffic {
+                        rx: rx,
+                        tx: tx,
+                        rx_string: rx_string,
+                        tx_string: tx_string,
+                        iface: iface.to_string(),
+                    })
+                }() {
+                    return Ok(result);
                 }
             }
         },
@@ -251,26 +241,21 @@ lazy_static! {
     static ref SENSORS: Sensors = Sensors::new();
 }
 fn get_chip_temperature(chip_name: &str, temperature_name: &str) -> Option<String> {
-    match (*SENSORS).detected_chips(chip_name) {
-        Ok(mut chip_iter) => {
-            // just pick the first chip there
-            let chip = chip_iter.next();
-            match chip {
-                Some(chip) => match chip.into_iter().find(|feat| feat.name() == temperature_name) {
-                    Some(feat) => match feat.get_subfeature(sensors::SubfeatureType::SENSORS_SUBFEATURE_TEMP_INPUT) {
-                        Some(subfeat) => match subfeat.get_value() {
-                            Ok(value) => Some(format!(TEMPERATURE_FORMAT!(), value)),
-                            Err(_) => None
-                        },
-                        None => None
-                    },
-                    None => None
-                },
-                None => None
+    if let Ok(mut chip_iter) = (*SENSORS).detected_chips(chip_name) {
+        // just pick the first chip there
+        let chip = chip_iter.next();
+        if let Some(chip) = chip {
+            if let Some(feat) = chip.into_iter().find(|feat| feat.name() == temperature_name) {
+                if let Some(subfeat) = feat.get_subfeature(sensors::SubfeatureType::SENSORS_SUBFEATURE_TEMP_INPUT) {
+                    if let Ok(value) = subfeat.get_value() {
+                        return Some(format!(TEMPERATURE_FORMAT!(), value));
+                    }
+                }
             }
-        },
-        Err(_) => None
+        }
     }
+
+    None
 }
 
 
@@ -292,74 +277,63 @@ lazy_static! {
 pub const CPU:Command = Command {
     icon: '',
     call: |_| {
-        match fs::File::open("/proc/stat") {
-            Ok(stat_file) => {
-                let mut linereader = LineReader::new(stat_file);
+        if let Ok(stat_file) = fs::File::open("/proc/stat") {
+            let mut linereader = LineReader::new(stat_file);
 
-                let mut cpuinfos: Vec<String> = vec![];
+            let mut cpuinfos: Vec<String> = vec![];
 
-                match linereader.for_each(|line| {
-                    if let Ok(str_line) = std::str::from_utf8(line) {
-                        match CPU_LINE_REGEXP.captures(str_line) {
-                            Some(caps) => {
-                                let a: Vec<&str> = str_line.split(" ").collect();
-                                if a.len() >= 9 {
-                                    match || -> Result<(), rust_decimal::Error> {
-                                        let user = Decimal::from_str(a[1])?;
-                                        let nice = Decimal::from_str(a[2])?;
-                                        let system = Decimal::from_str(a[3])?;
-                                        let idle = Decimal::from_str(a[4])?;
-                                        let iowait = Decimal::from_str(a[5])?;
-                                        let irq = Decimal::from_str(a[6])?;
-                                        let softirq = Decimal::from_str(a[7])?;
-                                        let steal = Decimal::from_str(a[8])?;
+            if let Ok(_) = linereader.for_each(|line| {
+                if let Ok(str_line) = std::str::from_utf8(line) {
+                    if let Some(caps) = CPU_LINE_REGEXP.captures(str_line) {
+                        let a: Vec<&str> = str_line.split(" ").collect();
+                        if a.len() >= 9 {
+                            if let Ok(_) = || -> Result<(), rust_decimal::Error> {
+                                let user = Decimal::from_str(a[1])?;
+                                let nice = Decimal::from_str(a[2])?;
+                                let system = Decimal::from_str(a[3])?;
+                                let idle = Decimal::from_str(a[4])?;
+                                let iowait = Decimal::from_str(a[5])?;
+                                let irq = Decimal::from_str(a[6])?;
+                                let softirq = Decimal::from_str(a[7])?;
+                                let steal = Decimal::from_str(a[8])?;
 
-                                        let used = user + nice + system + irq + softirq + steal;
-                                        let total = used + idle + iowait;
+                                let used = user + nice + system + irq + softirq + steal;
+                                let total = used + idle + iowait;
 
-                                        let new_state = format!("{} {}", used, total);
-                                        // save anyway, display only if there was an old state
-                                        match persist_state(&("old".to_owned() + a[0]), &new_state) {
-                                            Ok(old_state) => {
-                                                let old_state: Vec<&str> = old_state.split(" ").collect();
-                                                if old_state.len() == 2 {
-                                                    let cpu_no = caps.get(1).unwrap().as_str();
+                                let new_state = format!("{} {}", used, total);
+                                // save anyway, display only if there was an old state
+                                if let Ok(old_state) = persist_state(&("old".to_owned() + a[0]), &new_state) {
+                                    let old_state: Vec<&str> = old_state.split(" ").collect();
+                                    if old_state.len() == 2 {
+                                        let cpu_no = caps.get(1).unwrap().as_str();
 
-                                                    let old_used = Decimal::from_str(old_state[0])?;
-                                                    let old_total = Decimal::from_str(old_state[1])?;
-                                                    cpuinfos.push(if total > old_total {
-                                                        format!(
-                                                            "{}{:.0}%",
-                                                            cpu_freq_icon(cpu_no).unwrap_or("".to_string()),
-                                                            *DECIMAL_100 * (used - old_used) / (total - old_total)
-                                                        )
-                                                    } else {
-                                                        "?".to_string()
-                                                    });
-                                                }
-                                            },
-                                            Err(_) => {}
-                                        };
+                                        let old_used = Decimal::from_str(old_state[0])?;
+                                        let old_total = Decimal::from_str(old_state[1])?;
+                                        cpuinfos.push(if total > old_total {
+                                            format!(
+                                                "{}{:.0}%",
+                                                cpu_freq_icon(cpu_no).unwrap_or("".to_string()),
+                                                *DECIMAL_100 * (used - old_used) / (total - old_total)
+                                            )
+                                        } else {
+                                            "?".to_string()
+                                        });
+                                    }
+                                };
 
-                                        Ok(())
-                                    }() {
-                                        Ok(_) => {},
-                                        Err(_) => {},
-                                    };
-                                }
-                            },
-                            None => {}
+                                Ok(())
+                            }() {};
                         }
                     }
-
-                    Ok(true)
-                }) {
-                    Ok(_) => Some(cpuinfos.join(" ")),
-                    Err(_) => None
                 }
-            },
-            Err(_) => None
+
+                Ok(true)
+            }) {
+                return Some(cpuinfos.join(" "));
+            }
         }
+
+        None
     },
 };
 
@@ -392,16 +366,12 @@ pub const ZRAM:Command = Command {
                 let mut total_comp: u64 = 0;
 
                 for i in 0.. {
-                    match fs::File::open("/sys/devices/virtual/block/zram".to_string() + &i.to_string() + "/mm_stat") {
-                        Ok(mut stat_file) => {
-                            let mut contents = String::new();
-
-                            if let Ok(_) = stat_file.read_to_string(&mut contents) {
-                                let a: Vec<&str> = contents.split(" ").collect();
-                                if a.len() >= 2 {
-                                    if let Ok(comp) = u64::from_str(a[1]) {
-                                        total_comp += comp;
-                                    }
+                    match fs::read_to_string("/sys/devices/virtual/block/zram".to_string() + &i.to_string() + "/mm_stat") {
+                        Ok(contents) => {
+                            let a: Vec<&str> = contents.split(" ").collect();
+                            if a.len() >= 2 {
+                                if let Ok(comp) = u64::from_str(a[1]) {
+                                    total_comp += comp;
                                 }
                             }
                         },
