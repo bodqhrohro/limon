@@ -6,6 +6,7 @@ extern crate rust_decimal;
 extern crate once_cell;
 extern crate sensors;
 extern crate hdd;
+extern crate itertools;
 
 use std::env;
 use std::fs;
@@ -26,6 +27,7 @@ use hdd::ata::ATADevice;
 use hdd::scsi::SCSIDevice;
 use hdd::ata::misc::Misc;
 use hdd::ata::data::attr::raw::Raw as HDDRaw;
+use itertools::free::join;
 
 pub struct Command
 {
@@ -256,6 +258,29 @@ fn get_chip_temperature(chip_name: &str, temperature_name: &str) -> Option<Strin
     }
 
     None
+}
+
+lazy_static! {
+    static ref DBMS_LEVELS: BTreeMap<i16, char> = {
+        let mut map = BTreeMap::new();
+        map.insert(-90, '▁');
+        map.insert(-80, '▂');
+        map.insert(-70, '▃');
+        map.insert(-67, '▄');
+        map.insert(-60, '▅');
+        map
+    };
+}
+fn show_dbms(dbms: i16) -> String {
+    join(DBMS_LEVELS.keys().map(|floor| {
+        if dbms >= *floor {
+            if let Some(bar) = DBMS_LEVELS.get(floor) {
+                return bar;
+            }
+        }
+
+        &' '
+    }), &"")
 }
 
 
@@ -522,6 +547,44 @@ pub const ATA_HDDTEMP:Command = Command {
     },
 };
 
+pub const WIRELESS_SIGNAL:Command = Command {
+    icon: '',
+    call: |args| {
+        if args.len() < 1 {
+            return None;
+        }
+
+        let interface = args[0];
+
+        if let Ok(stat_file) = fs::File::open("/proc/net/wireless") {
+            let mut linereader = LineReader::new(stat_file);
+
+            while let Some(Ok(line)) = linereader.next_line() {
+                if let Ok(str_line) = std::str::from_utf8(line) {
+                    let mut token_iter = str_line.split_whitespace();
+                    if let Some(interface_column) = token_iter.next() {
+                        if interface_column.starts_with(interface) {
+                            if let Some(level) = token_iter.nth(2) {
+                                let mut level = level.to_string();
+
+                                if level.ends_with('.') {
+                                    level.pop();
+                                }
+
+                                if let Ok(int_level) = level.parse::<i16>() {
+                                    return Some(format!("{} {}", show_dbms(int_level), level));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    },
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -645,5 +708,119 @@ mod tests {
     fn two_amounts_first_larger() {
         let formatted = format_two_amounts(23899999999, 123289, "lol");
         assert_eq!(formatted, "22.2lol0G");
+    }
+
+    #[test]
+    fn dbms_low() {
+        let signal = show_dbms(-100);
+        assert_eq!(signal, "     ");
+    }
+
+    #[test]
+    fn dbms_91() {
+        let signal = show_dbms(-91);
+        assert_eq!(signal, "     ");
+    }
+
+    #[test]
+    fn dbms_90() {
+        let signal = show_dbms(-90);
+        assert_eq!(signal, "▁    ");
+    }
+
+    #[test]
+    fn dbms_89() {
+        let signal = show_dbms(-89);
+        assert_eq!(signal, "▁    ");
+    }
+
+    #[test]
+    fn dbms_81() {
+        let signal = show_dbms(-81);
+        assert_eq!(signal, "▁    ");
+    }
+
+    #[test]
+    fn dbms_80() {
+        let signal = show_dbms(-80);
+        assert_eq!(signal, "▁▂   ");
+    }
+
+    #[test]
+    fn dbms_79() {
+        let signal = show_dbms(-79);
+        assert_eq!(signal, "▁▂   ");
+    }
+
+    #[test]
+    fn dbms_71() {
+        let signal = show_dbms(-71);
+        assert_eq!(signal, "▁▂   ");
+    }
+
+    #[test]
+    fn dbms_70() {
+        let signal = show_dbms(-70);
+        assert_eq!(signal, "▁▂▃  ");
+    }
+
+    #[test]
+    fn dbms_69() {
+        let signal = show_dbms(-69);
+        assert_eq!(signal, "▁▂▃  ");
+    }
+
+    #[test]
+    fn dbms_68() {
+        let signal = show_dbms(-68);
+        assert_eq!(signal, "▁▂▃  ");
+    }
+
+    #[test]
+    fn dbms_67() {
+        let signal = show_dbms(-67);
+        assert_eq!(signal, "▁▂▃▄ ");
+    }
+
+    #[test]
+    fn dbms_66() {
+        let signal = show_dbms(-66);
+        assert_eq!(signal, "▁▂▃▄ ");
+    }
+
+    #[test]
+    fn dbms_61() {
+        let signal = show_dbms(-61);
+        assert_eq!(signal, "▁▂▃▄ ");
+    }
+
+    #[test]
+    fn dbms_60() {
+        let signal = show_dbms(-60);
+        assert_eq!(signal, "▁▂▃▄▅");
+    }
+
+    #[test]
+    fn dbms_59() {
+        let signal = show_dbms(-59);
+        assert_eq!(signal, "▁▂▃▄▅");
+    }
+
+    #[test]
+    fn dbms_large() {
+        let signal = show_dbms(-20);
+        assert_eq!(signal, "▁▂▃▄▅");
+    }
+
+    #[test]
+    fn dbms_zero() {
+        let signal = show_dbms(0);
+        assert_eq!(signal, "▁▂▃▄▅");
+    }
+
+    #[test]
+    fn dbms_positive() {
+        let signal = show_dbms(40);
+        assert_eq!(signal, "▁▂▃▄▅");
     }
 }
