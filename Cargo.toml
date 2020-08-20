@@ -14,7 +14,7 @@ path = "src/bin.rs"
 
 [dependencies]
 itertools = "*"
-procfs = "*"
+procfs = "0.8"
 lazy_static = "*"
 linereader = "*"
 regex = "1"

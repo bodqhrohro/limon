@@ -121,7 +121,7 @@ fn format_amount(mantissa: Decimal) -> String {
 }
 
 lazy_static! {
-    static ref BYTE_SUFFIX_MAP: BTreeMap<u64, &'static str> = {
+    static ref BYTE_SUFFIX_MAP: BTreeMap<usize, &'static str> = {
         let mut map = BTreeMap::new();
         map.insert(10 * (1 << 10), "K");
         map.insert(10 * (1 << 20), "M");
@@ -131,7 +131,7 @@ lazy_static! {
         map
     };
 }
-fn format_two_amounts(a1: u64, a2: u64, separator: &str) -> String {
+fn format_two_amounts(a1: usize, a2: usize, separator: &str) -> String {
     let bearer = std::cmp::max(a1, a2);
 
     let mut bearer_ceil = &10;
@@ -156,8 +156,8 @@ fn format_two_amounts(a1: u64, a2: u64, separator: &str) -> String {
 
 #[derive(Clone)]
 struct Traffic {
-    rx: u64,
-    tx: u64,
+    rx: usize,
+    tx: usize,
     rx_string: String,
     tx_string: String,
     iface: String,
@@ -177,8 +177,8 @@ fn fetch_traffic(iface: &str) -> MaybeTraffic {
                 trim_trailing_newline(&mut tx_string);
 
                 if let Ok(result) = || -> Result<Traffic, std::num::ParseIntError> {
-                    let rx = u64::from_str(&rx_string)?;
-                    let tx = u64::from_str(&tx_string)?;
+                    let rx = usize::from_str(&rx_string)?;
+                    let tx = usize::from_str(&tx_string)?;
 
                     Ok(Traffic {
                         rx: rx,
@@ -363,15 +363,15 @@ pub const CPU:Command = Command {
 };
 
 lazy_static! {
-    static ref MEMINFO: procfs::ProcResult<procfs::Meminfo> = procfs::meminfo();
+    static ref MEMINFO: procfs::ProcResult<procfs::Meminfo> = procfs::Meminfo::new();
 }
 pub const MEM:Command = Command {
     icon: '',
     call: |_| {
         match &*MEMINFO {
             Ok(meminfo) => {
-                let mem_available = meminfo.mem_available.unwrap_or(0);
-                let mem_total = meminfo.mem_total;
+                let mem_available = meminfo.mem_available.unwrap_or(0) as usize;
+                let mem_total = meminfo.mem_total as usize;
 
                 Some(format_two_amounts(mem_total - mem_available, mem_total, "/"))
             },
@@ -388,14 +388,14 @@ pub const ZRAM:Command = Command {
                 let swap_free = meminfo.swap_free;
                 let swap_total = meminfo.swap_total;
 
-                let mut total_comp: u64 = 0;
+                let mut total_comp: usize = 0;
 
                 for i in 0.. {
                     match fs::read_to_string("/sys/devices/virtual/block/zram".to_string() + &i.to_string() + "/mm_stat") {
                         Ok(contents) => {
                             let a: Vec<&str> = contents.split(" ").collect();
                             if a.len() >= 2 {
-                                if let Ok(comp) = u64::from_str(a[1]) {
+                                if let Ok(comp) = usize::from_str(a[1]) {
                                     total_comp += comp;
                                 }
                             }
@@ -406,14 +406,14 @@ pub const ZRAM:Command = Command {
                     }
                 }
 
-                Some(format_two_amounts(total_comp, swap_total - swap_free, ":"))
+                Some(format_two_amounts(total_comp, (swap_total - swap_free) as usize, ":"))
             },
             Err(_) => None,
         }
     },
 };
 
-const RADEON_VRAM_BLOCK_SIZE: u64 = 4096;
+const RADEON_VRAM_BLOCK_SIZE: usize = 4096;
 pub const RADEON_VRAM:Command = Command {
     icon: '',
     call: |_| {
@@ -432,12 +432,12 @@ pub const RADEON_VRAM:Command = Command {
                     let a: Vec<&str> = last_line.split(" ").collect();
                     if a.len() >= 4 {
                         if let Ok(result) = || -> Result<String, std::num::ParseIntError> {
-                            let used = u64::from_str(a[3])?;
+                            let used = usize::from_str(a[3])?;
 
                             let mut total = a[1].to_string();
                             // strip the comma
                             total.pop();
-                            let total = u64::from_str(&total)?;
+                            let total = usize::from_str(&total)?;
 
                             Ok(format_two_amounts(used * RADEON_VRAM_BLOCK_SIZE, total * RADEON_VRAM_BLOCK_SIZE, "/"))
                         }() {
@@ -487,8 +487,8 @@ pub const NETWORK_SPEED:Command = Command {
                         if let Ok(result) = || -> Result<String, std::num::ParseIntError> {
                             let new_rx = traffic.rx;
                             let new_tx = traffic.tx;
-                            let old_rx = u64::from_str(old_state[0])?;
-                            let old_tx = u64::from_str(old_state[1])?;
+                            let old_rx = usize::from_str(old_state[0])?;
+                            let old_tx = usize::from_str(old_state[1])?;
 
                             // TODO: fix a possible panic here
                             Ok(format_two_amounts(new_rx - old_rx, new_tx - old_tx, ":"))
@@ -575,6 +575,43 @@ pub const WIRELESS_SIGNAL:Command = Command {
                                     return Some(format!("{} {}", show_dbms(int_level), level));
                                 }
                             }
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    },
+};
+
+const LINUX_BLOCK_SIZE: usize = 512;
+pub const DISK_IO_SPEED:Command = Command {
+    icon: '',
+    call: |args| {
+        if args.len() < 1 {
+            return None;
+        }
+
+        let disk_name = args[0];
+
+        if let Ok(diskstats) = procfs::diskstats() {
+            if let Some(diskstat) = diskstats.iter().find(|diskstat| diskstat.name == args[0]) {
+                let read_bytes = diskstat.sectors_read * LINUX_BLOCK_SIZE;
+                let written_bytes = diskstat.sectors_written * LINUX_BLOCK_SIZE;
+
+                let new_state = format!("{} {}", read_bytes, written_bytes);
+                // save anyway, display only if there was an old state
+                if let Ok(old_state) = persist_state(&("old".to_owned() + disk_name), &new_state) {
+                    let old_state: Vec<&str> = old_state.split(" ").collect();
+                    if old_state.len() == 2 {
+                        if let Ok(result) = || -> Result<String, std::num::ParseIntError> {
+                            let old_read_bytes = usize::from_str(old_state[0])?;
+                            let old_written_bytes = usize::from_str(old_state[1])?;
+
+                            Ok(format_two_amounts(read_bytes - old_read_bytes, written_bytes - old_written_bytes, ":"))
+                        }() {
+                            return Some(result);
                         }
                     }
                 }
