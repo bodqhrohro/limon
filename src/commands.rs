@@ -7,6 +7,7 @@ extern crate once_cell;
 extern crate sensors;
 extern crate hdd;
 extern crate itertools;
+extern crate libc;
 
 use std::env;
 use std::fs;
@@ -16,6 +17,8 @@ use std::io::Write;
 use std::str::FromStr;
 use std::collections::BTreeMap;
 use std::process;
+use std::mem;
+use std::ffi::CString;
 
 use lazy_static::lazy_static;
 use linereader::LineReader;
@@ -614,6 +617,36 @@ pub const DISK_IO_SPEED:Command = Command {
                             return Some(result);
                         }
                     }
+                }
+            }
+        }
+
+        None
+    },
+};
+
+pub const FS_FREE:Command = Command {
+    icon: '',
+    call: |args| {
+        if args.len() < 1 {
+            return None;
+        }
+
+        let fs_root = args[0];
+
+        if let Ok(c_fs_root) = CString::new(fs_root) {
+            unsafe {
+                let mut statvfs = mem::zeroed();
+                if libc::statvfs(c_fs_root.as_ptr(), &mut statvfs) >= 0 {
+                    let blocksize = if statvfs.f_frsize != 0 {
+                        statvfs.f_frsize as usize
+                    } else {
+                        statvfs.f_bsize as usize
+                    };
+                    let free = blocksize * (statvfs.f_bavail as usize);
+                    let total = blocksize * (statvfs.f_blocks as usize);
+
+                    return Some(format_two_amounts(free, total, "/"));
                 }
             }
         }

@@ -17,6 +17,7 @@ pub fn main() {
     let ata_hddtemp = exec_command(&limonlib::commands::ATA_HDDTEMP, &["/dev/sda"]);
     let wireless_signal = exec_command(&limonlib::commands::WIRELESS_SIGNAL, &[wireless_interface]);
     let disk_io_speed = exec_command(&limonlib::commands::DISK_IO_SPEED, &["sda"]);
+    let fs_free = exec_command(&limonlib::commands::FS_FREE, &["/"]);
 
-    limonlib::output_pango(vec!(loadavg, cpu, mem, zram, radeon_vram, traffic, radeon_temperature, amd_k10_temperature, ata_hddtemp, network_speed, wireless_signal, disk_io_speed), 12);
+    limonlib::output_pango(vec!(loadavg, cpu, mem, zram, radeon_vram, traffic, radeon_temperature, amd_k10_temperature, ata_hddtemp, network_speed, wireless_signal, disk_io_speed, fs_free), 12);
 }
