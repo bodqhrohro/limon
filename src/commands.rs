@@ -32,10 +32,26 @@ use hdd::ata::misc::Misc;
 use hdd::ata::data::attr::raw::Raw as HDDRaw;
 use itertools::free::join;
 
-pub struct Command
+pub struct StaticIconCommand
 {
     pub icon: char,
     pub call: fn(&[&str]) -> Option<String>,
+}
+
+pub struct DynamicIconCommandOutput
+{
+    pub icon: char,
+    pub text: String,
+}
+
+pub struct DynamicIconCommand
+{
+    pub call: fn(&[&str]) -> Option<DynamicIconCommandOutput>,
+}
+
+pub enum Command {
+    Static(StaticIconCommand),
+    Dynamic(DynamicIconCommand),
 }
 
 const FILE_PREFIX: &str = ".limon-";
@@ -288,7 +304,7 @@ fn show_dbms(dbms: i16) -> String {
 
 
 
-pub const LOADAVG:Command = Command {
+pub const LOADAVG:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |_| {
         let la = procfs::LoadAverage::new();
@@ -302,7 +318,7 @@ pub const LOADAVG:Command = Command {
 lazy_static! {
     static ref CPU_LINE_REGEXP: Regex = Regex::new(r"^cpu(\d+) ").unwrap();
 }
-pub const CPU:Command = Command {
+pub const CPU:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |_| {
         if let Ok(stat_file) = fs::File::open("/proc/stat") {
@@ -368,7 +384,7 @@ pub const CPU:Command = Command {
 lazy_static! {
     static ref MEMINFO: procfs::ProcResult<procfs::Meminfo> = procfs::Meminfo::new();
 }
-pub const MEM:Command = Command {
+pub const MEM:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |_| {
         match &*MEMINFO {
@@ -383,7 +399,7 @@ pub const MEM:Command = Command {
     },
 };
 
-pub const ZRAM:Command = Command {
+pub const ZRAM:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |_| {
         match &*MEMINFO {
@@ -417,7 +433,7 @@ pub const ZRAM:Command = Command {
 };
 
 const RADEON_VRAM_BLOCK_SIZE: usize = 4096;
-pub const RADEON_VRAM:Command = Command {
+pub const RADEON_VRAM:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |_| {
         // there's no too much contents (around 32 kB for me), so it's easier
@@ -455,7 +471,7 @@ pub const RADEON_VRAM:Command = Command {
     },
 };
 
-pub const TRAFFIC:Command = Command {
+pub const TRAFFIC:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |args| {
         if args.len() < 1 {
@@ -471,7 +487,7 @@ pub const TRAFFIC:Command = Command {
     },
 };
 
-pub const NETWORK_SPEED:Command = Command {
+pub const NETWORK_SPEED:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |args| {
         if args.len() < 1 {
@@ -508,14 +524,14 @@ pub const NETWORK_SPEED:Command = Command {
     },
 };
 
-pub const RADEON_TEMPERATURE:Command = Command {
+pub const RADEON_TEMPERATURE:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |_| {
         get_chip_temperature("radeon-pci-0100", "temp1")
     },
 };
 
-pub const AMD_K10_TEMPERATURE:Command = Command {
+pub const AMD_K10_TEMPERATURE:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |_| {
         get_chip_temperature("k10temp-pci-00c3", "temp1")
@@ -523,7 +539,7 @@ pub const AMD_K10_TEMPERATURE:Command = Command {
 };
 
 const TEMPERATURE_CELSIUS: u8 = 194;
-pub const ATA_HDDTEMP:Command = Command {
+pub const ATA_HDDTEMP:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |args| {
         if args.len() < 1 {
@@ -550,7 +566,7 @@ pub const ATA_HDDTEMP:Command = Command {
     },
 };
 
-pub const WIRELESS_SIGNAL:Command = Command {
+pub const WIRELESS_SIGNAL:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |args| {
         if args.len() < 1 {
@@ -589,7 +605,7 @@ pub const WIRELESS_SIGNAL:Command = Command {
 };
 
 const LINUX_BLOCK_SIZE: usize = 512;
-pub const DISK_IO_SPEED:Command = Command {
+pub const DISK_IO_SPEED:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |args| {
         if args.len() < 1 {
@@ -625,7 +641,7 @@ pub const DISK_IO_SPEED:Command = Command {
     },
 };
 
-pub const FS_FREE:Command = Command {
+pub const FS_FREE:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |args| {
         if args.len() < 1 {

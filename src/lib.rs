@@ -47,10 +47,19 @@ fn output(mode: OutputMode, items: Vec<LimonItem>, font_size: Option<u16>) -> St
 }
 
 pub fn exec_command(command: &commands::Command, arguments: &[&str]) -> LimonItem {
-    let result = (command.call)(arguments);
+    let (icon, result) = match command {
+        commands::Command::Static(command) => (command.icon, (command.call)(arguments)),
+        commands::Command::Dynamic(command) => {
+            let result = (command.call)(arguments);
+            match result {
+                Some(result) => (result.icon, Some(result.text)),
+                None => (' ', None),
+            }
+        },
+    };
 
     LimonItem {
-        icon: command.icon,
+        icon: icon,
         value: match result {
             Some(v) => v,
             None => "#ERROR#".to_string(),

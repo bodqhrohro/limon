@@ -1,23 +1,30 @@
 extern crate limonlib;
 
-use limonlib::exec_command;
+use limonlib::{exec_command, commands};
+
+struct CommandAndArgs<'a> {
+    command: &'a commands::Command,
+    args: &'a [&'a str],
+}
 
 pub fn main() {
-    let wireless_interface = "wlan0";
+    let wireless_interface = ["wlan0"];
 
-    let loadavg = exec_command(&limonlib::commands::LOADAVG, &[]);
-    let cpu = exec_command(&limonlib::commands::CPU, &[]);
-    let mem = exec_command(&limonlib::commands::MEM, &[]);
-    let zram = exec_command(&limonlib::commands::ZRAM, &[]);
-    let radeon_vram = exec_command(&limonlib::commands::RADEON_VRAM, &[]);
-    let traffic = exec_command(&limonlib::commands::TRAFFIC, &[wireless_interface]);
-    let network_speed = exec_command(&limonlib::commands::NETWORK_SPEED, &[wireless_interface]);
-    let radeon_temperature = exec_command(&limonlib::commands::RADEON_TEMPERATURE, &[]);
-    let amd_k10_temperature = exec_command(&limonlib::commands::AMD_K10_TEMPERATURE, &[]);
-    let ata_hddtemp = exec_command(&limonlib::commands::ATA_HDDTEMP, &["/dev/sda"]);
-    let wireless_signal = exec_command(&limonlib::commands::WIRELESS_SIGNAL, &[wireless_interface]);
-    let disk_io_speed = exec_command(&limonlib::commands::DISK_IO_SPEED, &["sda"]);
-    let fs_free = exec_command(&limonlib::commands::FS_FREE, &["/"]);
+    let cmds = vec![
+        CommandAndArgs{command: &commands::Command::Static(commands::LOADAVG), args: &[]},
+        CommandAndArgs{command: &commands::Command::Static(commands::CPU), args: &[]},
+        CommandAndArgs{command: &commands::Command::Static(commands::MEM), args: &[]},
+        CommandAndArgs{command: &commands::Command::Static(commands::ZRAM), args: &[]},
+        CommandAndArgs{command: &commands::Command::Static(commands::RADEON_VRAM), args: &[]},
+        CommandAndArgs{command: &commands::Command::Static(commands::TRAFFIC), args: &wireless_interface},
+        CommandAndArgs{command: &commands::Command::Static(commands::RADEON_TEMPERATURE), args: &[]},
+        CommandAndArgs{command: &commands::Command::Static(commands::AMD_K10_TEMPERATURE), args: &[]},
+        CommandAndArgs{command: &commands::Command::Static(commands::ATA_HDDTEMP), args: &["/dev/sda"]},
+        CommandAndArgs{command: &commands::Command::Static(commands::NETWORK_SPEED), args: &wireless_interface},
+        CommandAndArgs{command: &commands::Command::Static(commands::WIRELESS_SIGNAL), args: &wireless_interface},
+        CommandAndArgs{command: &commands::Command::Static(commands::DISK_IO_SPEED), args: &["sda"]},
+        CommandAndArgs{command: &commands::Command::Static(commands::FS_FREE), args: &["/"]},
+    ];
 
-    limonlib::output_pango(vec!(loadavg, cpu, mem, zram, radeon_vram, traffic, radeon_temperature, amd_k10_temperature, ata_hddtemp, network_speed, wireless_signal, disk_io_speed, fs_free), 12);
+    limonlib::output_pango(cmds.iter().map(|cmd| exec_command(cmd.command, cmd.args)).collect(), 12);
 }
