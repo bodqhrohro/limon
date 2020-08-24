@@ -8,6 +8,7 @@ extern crate sensors;
 extern crate hdd;
 extern crate itertools;
 extern crate libc;
+extern crate battery;
 
 use std::env;
 use std::fs;
@@ -300,6 +301,22 @@ fn show_dbms(dbms: i16) -> String {
 
         &' '
     }), &"")
+}
+
+const BATTERY_LEVELS: [(u8, char); 4] = [
+    (80, ''),
+    (60, ''),
+    (40, ''),
+    (20, ''),
+];
+fn show_battery_icon(level: u8) -> char {
+    for (floor, icon) in BATTERY_LEVELS.iter() {
+        if level >= *floor {
+            return *icon;
+        }
+    }
+
+    ''
 }
 
 
@@ -671,6 +688,26 @@ pub const FS_FREE:StaticIconCommand = StaticIconCommand {
     },
 };
 
+pub const BATTERY:DynamicIconCommand = DynamicIconCommand {
+    call: |_| {
+        if let Ok(manager) = battery::Manager::new() {
+            if let Ok(mut batteries) = manager.batteries() {
+                if let Some(Ok(battery)) = batteries.next() {
+                    let state = battery.state_of_charge();
+                    let int_state = (state.value * 100.0) as u8;
+
+                    return Some(DynamicIconCommandOutput {
+                        icon: show_battery_icon(int_state),
+                        text: format!("{} %", int_state),
+                    });
+                }
+            }
+        }
+
+        None
+    },
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -922,5 +959,125 @@ mod tests {
         let mut s = "a\nb\nc".to_string();
         trim_trailing_newline(&mut s);
         assert_eq!(s, "a\nb\nc".to_string());
+    }
+
+    #[test]
+    fn battery_overfull() {
+        let level = show_battery_icon(1000.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_255() {
+        let level = show_battery_icon(255.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_101() {
+        let level = show_battery_icon(101.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_100() {
+        let level = show_battery_icon(100.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_99() {
+        let level = show_battery_icon(99.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_81() {
+        let level = show_battery_icon(81.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_80() {
+        let level = show_battery_icon(80.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_79() {
+        let level = show_battery_icon(79.9 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_61() {
+        let level = show_battery_icon(61.1 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_60() {
+        let level = show_battery_icon(60.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_59() {
+        let level = show_battery_icon(59.9 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_41() {
+        let level = show_battery_icon(41.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_40() {
+        let level = show_battery_icon(40.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_39() {
+        let level = show_battery_icon(39.9 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_21() {
+        let level = show_battery_icon(21.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_20() {
+        let level = show_battery_icon(20.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_19() {
+        let level = show_battery_icon(19.9 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_1() {
+        let level = show_battery_icon(1.9 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_0() {
+        let level = show_battery_icon(0.0 as u8);
+        assert_eq!(level, '');
+    }
+
+    #[test]
+    fn battery_negative() {
+        let level = show_battery_icon(-23.0 as u8);
+        assert_eq!(level, '');
     }
 }
