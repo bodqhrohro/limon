@@ -13,20 +13,21 @@ enum OutputMode {
 
 pub struct LimonItem {
     icon: char,
+    pub bar: Option<u8>,
     pre_spaces: usize,
     post_spaces: usize,
     value: String,
 }
 
 pub fn output_plain(items: Vec<LimonItem>) -> String {
-    output(OutputMode::PLAIN, items, None)
+    output(OutputMode::PLAIN, items, None, None)
 }
 
-pub fn output_pango(items: Vec<LimonItem>, font_size: u16) -> String {
-    output(OutputMode::PANGO, items, Some(font_size))
+pub fn output_pango(items: Vec<LimonItem>, font_size: u16, bar: Option<u8>) -> String {
+    output(OutputMode::PANGO, items, Some(font_size), bar)
 }
 
-fn output(mode: OutputMode, items: Vec<LimonItem>, font_size: Option<u16>) -> String {
+fn output(mode: OutputMode, items: Vec<LimonItem>, font_size: Option<u16>, bar: Option<u8>) -> String {
     let mut text = join(items.iter().map(|item| {
         format!(
             "{:<width$}{}\n",
@@ -39,6 +40,9 @@ fn output(mode: OutputMode, items: Vec<LimonItem>, font_size: Option<u16>) -> St
     if let OutputMode::PANGO = mode {
         text.insert_str(0, &format!("<txt><span font='FontAwesome {}'>\n", font_size.expect("Font size not provided")));
         text.push_str("</span></txt>");
+        if let Some(bar) = bar {
+            text.push_str(&format!("<bar>{}</bar>", bar));
+        }
     }
 
     print!("{}", text);
@@ -47,13 +51,13 @@ fn output(mode: OutputMode, items: Vec<LimonItem>, font_size: Option<u16>) -> St
 }
 
 pub fn exec_command(command: &commands::Command, arguments: &[&str]) -> LimonItem {
-    let (icon, result) = match command {
-        commands::Command::Static(command) => (command.icon, (command.call)(arguments)),
+    let (icon, result, bar) = match command {
+        commands::Command::Static(command) => (command.icon, (command.call)(arguments), None),
         commands::Command::Dynamic(command) => {
             let result = (command.call)(arguments);
             match result {
-                Some(result) => (result.icon, Some(result.text)),
-                None => (' ', None),
+                Some(result) => (result.icon, Some(result.text), result.bar),
+                None => (' ', None, None),
             }
         },
     };
@@ -64,6 +68,7 @@ pub fn exec_command(command: &commands::Command, arguments: &[&str]) -> LimonIte
             Some(v) => v,
             None => "#ERROR#".to_string(),
         },
+        bar: bar,
         pre_spaces: 0,
         post_spaces: 6,
     }
@@ -75,8 +80,8 @@ mod tests {
 
     fn _two_test_lines() -> Vec<LimonItem> {
         vec!(
-            LimonItem { icon: 'a', value: "tist".to_string(), pre_spaces: 0, post_spaces: 8 },
-            LimonItem { icon: 'b', value: "zizd".to_string(), pre_spaces: 1, post_spaces: 4 },
+            LimonItem { icon: 'a', value: "tist".to_string(), bar: None, pre_spaces: 0, post_spaces: 8 },
+            LimonItem { icon: 'b', value: "zizd".to_string(), bar: None, pre_spaces: 1, post_spaces: 4 },
         )
     }
 
@@ -88,10 +93,18 @@ mod tests {
 
     #[test]
     fn output_pango_has_markup() {
-        let text = output_pango(_two_test_lines(), 12);
+        let text = output_pango(_two_test_lines(), 12, None);
         let mut lines = text.lines();
         assert_eq!(lines.next(), Some("<txt><span font='FontAwesome 12'>"));
         assert_eq!(lines.next_back(), Some("</span></txt>"));
+    }
+
+    #[test]
+    fn output_pango_with_bar() {
+        let text = output_pango(_two_test_lines(), 12, Some(23));
+        let mut lines = text.lines();
+        assert_eq!(lines.next(), Some("<txt><span font='FontAwesome 12'>"));
+        assert_eq!(lines.next_back(), Some("</span></txt><bar>23</bar>"));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 extern crate limonlib;
 
-use limonlib::{exec_command, commands};
+use limonlib::{LimonItem, exec_command, commands};
 
 struct CommandAndArgs<'a> {
     command: &'a commands::Command,
@@ -27,5 +27,11 @@ pub fn main() {
         CommandAndArgs{command: &commands::Command::Dynamic(commands::BATTERY), args: &[]},
     ];
 
-    limonlib::output_pango(cmds.iter().map(|cmd| exec_command(cmd.command, cmd.args)).collect(), 12);
+    let results: Vec<LimonItem> = cmds.iter().map(|cmd| exec_command(cmd.command, cmd.args)).collect();
+    let bar = match results.last() {
+        Some(item) => item.bar,
+        _ => None,
+    };
+
+    limonlib::output_pango(results, 12, bar);
 }

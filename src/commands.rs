@@ -43,6 +43,7 @@ pub struct DynamicIconCommandOutput
 {
     pub icon: char,
     pub text: String,
+    pub bar: Option<u8>,
 }
 
 pub struct DynamicIconCommand
@@ -699,6 +700,7 @@ pub const BATTERY:DynamicIconCommand = DynamicIconCommand {
                     return Some(DynamicIconCommandOutput {
                         icon: show_battery_icon(int_state),
                         text: format!("{} %", int_state),
+                        bar: Some(int_state),
                     });
                 }
             }
