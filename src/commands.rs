@@ -21,6 +21,8 @@ use std::process;
 use std::mem;
 use std::ffi::CString;
 
+use super::utils::trim_trailing_newline;
+
 use lazy_static::lazy_static;
 use linereader::LineReader;
 use regex::Regex;
@@ -73,12 +75,6 @@ lazy_static! {
             Err(_) => env::temp_dir(),
         }).expect("")
     };
-}
-
-fn trim_trailing_newline(s: &mut String) -> () {
-    if s.ends_with('\n') {
-        s.pop();
-    }
 }
 
 fn persist_state(name: &str, save: &str) -> io::Result<String> {

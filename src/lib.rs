@@ -1,8 +1,11 @@
 extern crate itertools;
 
-use itertools::free::join;
-
 pub mod commands;
+pub mod utils;
+
+use utils::trim_trailing_newline;
+
+use itertools::free::join;
 
 const ICON_WIDTH: usize = 1;
 
@@ -38,7 +41,8 @@ fn output(mode: OutputMode, items: Vec<LimonItem>, font_size: Option<u16>, bar: 
     }), &"");
 
     if let OutputMode::PANGO = mode {
-        text.insert_str(0, &format!("<txt><span font='FontAwesome {}'>\n", font_size.expect("Font size not provided")));
+        text.insert_str(0, &format!("<txt><span font='FontAwesome {}'>", font_size.expect("Font size not provided")));
+        trim_trailing_newline(&mut text);
         text.push_str("</span></txt>");
         if let Some(bar) = bar {
             text.push_str(&format!("<bar>{}</bar>", bar));
