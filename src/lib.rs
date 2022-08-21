@@ -99,16 +99,16 @@ mod tests {
     fn output_pango_has_markup() {
         let text = output_pango(_two_test_lines(), 12, None);
         let mut lines = text.lines();
-        assert_eq!(lines.next(), Some("<txt><span font='FontAwesome 12'>"));
-        assert_eq!(lines.next_back(), Some("</span></txt>"));
+        assert!(lines.next().unwrap().starts_with("<txt><span font='FontAwesome 12'>"));
+        assert!(lines.next_back().unwrap().ends_with("</span></txt>"));
     }
 
     #[test]
     fn output_pango_with_bar() {
         let text = output_pango(_two_test_lines(), 12, Some(23));
         let mut lines = text.lines();
-        assert_eq!(lines.next(), Some("<txt><span font='FontAwesome 12'>"));
-        assert_eq!(lines.next_back(), Some("</span></txt><bar>23</bar>"));
+        assert!(lines.next().unwrap().starts_with("<txt><span font='FontAwesome 12'>"));
+        assert!(lines.next_back().unwrap().ends_with("</span></txt><bar>23</bar>"));
     }
 
     #[test]
