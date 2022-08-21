@@ -55,13 +55,13 @@ fn output(mode: OutputMode, items: Vec<LimonItem>, font_size: Option<u16>, bar: 
 }
 
 pub fn exec_command(command: &commands::Command, arguments: &[&str]) -> LimonItem {
-    let (icon, result, bar) = match command {
-        commands::Command::Static(command) => (command.icon, (command.call)(arguments), None),
+    let (icon, result, bar, pre_spaces, post_spaces) = match command {
+        commands::Command::Static(command) => (command.icon, (command.call)(arguments), None, command.pre_spaces, command.post_spaces),
         commands::Command::Dynamic(command) => {
             let result = (command.call)(arguments);
             match result {
-                Some(result) => (result.icon, Some(result.text), result.bar),
-                None => (' ', None, None),
+                Some(result) => (result.icon, Some(result.text), result.bar, result.pre_spaces, result.post_spaces),
+                None => (' ', None, None, 0, 0),
             }
         },
     };
@@ -73,8 +73,8 @@ pub fn exec_command(command: &commands::Command, arguments: &[&str]) -> LimonIte
             None => "#ERROR#".to_string(),
         },
         bar: bar,
-        pre_spaces: 0,
-        post_spaces: 6,
+        pre_spaces: pre_spaces,
+        post_spaces: post_spaces,
     }
 }
 

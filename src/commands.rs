@@ -39,6 +39,8 @@ pub struct StaticIconCommand
 {
     pub icon: char,
     pub call: fn(&[&str]) -> Option<String>,
+    pub pre_spaces: usize,
+    pub post_spaces: usize,
 }
 
 pub struct DynamicIconCommandOutput
@@ -46,6 +48,8 @@ pub struct DynamicIconCommandOutput
     pub icon: char,
     pub text: String,
     pub bar: Option<u8>,
+    pub pre_spaces: usize,
+    pub post_spaces: usize,
 }
 
 pub struct DynamicIconCommand
@@ -327,6 +331,8 @@ pub const LOADAVG:StaticIconCommand = StaticIconCommand {
             Err(_) => None,
         }
     },
+    pre_spaces: 0,
+    post_spaces: 3,
 };
 
 lazy_static! {
@@ -393,6 +399,8 @@ pub const CPU:StaticIconCommand = StaticIconCommand {
 
         None
     },
+    pre_spaces: 0,
+    post_spaces: 2,
 };
 
 lazy_static! {
@@ -411,6 +419,8 @@ pub const MEM:StaticIconCommand = StaticIconCommand {
             Err(_) => None,
         }
     },
+    pre_spaces: 0,
+    post_spaces: 3,
 };
 
 pub const ZRAM:StaticIconCommand = StaticIconCommand {
@@ -444,6 +454,8 @@ pub const ZRAM:StaticIconCommand = StaticIconCommand {
             Err(_) => None,
         }
     },
+    pre_spaces: 0,
+    post_spaces: 3,
 };
 
 const RADEON_VRAM_BLOCK_SIZE: usize = 4096;
@@ -483,6 +495,8 @@ pub const RADEON_VRAM:StaticIconCommand = StaticIconCommand {
 
         None
     },
+    pre_spaces: 0,
+    post_spaces: 2,
 };
 
 pub const TRAFFIC:StaticIconCommand = StaticIconCommand {
@@ -499,6 +513,8 @@ pub const TRAFFIC:StaticIconCommand = StaticIconCommand {
             Err(msg) => Some(msg)
         }
     },
+    pre_spaces: 0,
+    post_spaces: 2,
 };
 
 pub const NETWORK_SPEED:StaticIconCommand = StaticIconCommand {
@@ -536,6 +552,8 @@ pub const NETWORK_SPEED:StaticIconCommand = StaticIconCommand {
             Err(msg) => Some(msg)
         }
     },
+    pre_spaces: 0,
+    post_spaces: 3,
 };
 
 pub const RADEON_TEMPERATURE:StaticIconCommand = StaticIconCommand {
@@ -543,6 +561,8 @@ pub const RADEON_TEMPERATURE:StaticIconCommand = StaticIconCommand {
     call: |_| {
         get_chip_temperature("radeon-pci-0100", "temp1")
     },
+    pre_spaces: 0,
+    post_spaces: 2,
 };
 
 pub const AMD_K10_TEMPERATURE:StaticIconCommand = StaticIconCommand {
@@ -550,6 +570,8 @@ pub const AMD_K10_TEMPERATURE:StaticIconCommand = StaticIconCommand {
     call: |_| {
         get_chip_temperature("k10temp-pci-00c3", "temp1")
     },
+    pre_spaces: 1,
+    post_spaces: 3,
 };
 
 const TEMPERATURE_CELSIUS: u8 = 194;
@@ -578,6 +600,8 @@ pub const ATA_HDDTEMP:StaticIconCommand = StaticIconCommand {
 
         None
     },
+    pre_spaces: 0,
+    post_spaces: 3,
 };
 
 pub const WIRELESS_SIGNAL:StaticIconCommand = StaticIconCommand {
@@ -605,7 +629,7 @@ pub const WIRELESS_SIGNAL:StaticIconCommand = StaticIconCommand {
                                 }
 
                                 if let Ok(int_level) = level.parse::<i16>() {
-                                    return Some(format!("{} {}", show_dbms(int_level), level));
+                                    return Some(format!("{}{}", show_dbms(int_level), level));
                                 }
                             }
                         }
@@ -616,6 +640,8 @@ pub const WIRELESS_SIGNAL:StaticIconCommand = StaticIconCommand {
 
         None
     },
+    pre_spaces: 0,
+    post_spaces: 3,
 };
 
 const LINUX_BLOCK_SIZE: usize = 512;
@@ -653,6 +679,8 @@ pub const DISK_IO_SPEED:StaticIconCommand = StaticIconCommand {
 
         None
     },
+    pre_spaces: 0,
+    post_spaces: 3,
 };
 
 pub const FS_FREE:StaticIconCommand = StaticIconCommand {
@@ -683,6 +711,8 @@ pub const FS_FREE:StaticIconCommand = StaticIconCommand {
 
         None
     },
+    pre_spaces: 0,
+    post_spaces: 2,
 };
 
 pub const BATTERY:DynamicIconCommand = DynamicIconCommand {
@@ -697,6 +727,8 @@ pub const BATTERY:DynamicIconCommand = DynamicIconCommand {
                         icon: show_battery_icon(int_state),
                         text: format!("{} %", int_state),
                         bar: Some(int_state),
+                        pre_spaces: 0,
+                        post_spaces: 2,
                     });
                 }
             }
