@@ -65,12 +65,6 @@ pub enum Command {
 const FILE_PREFIX: &str = ".limon-";
 macro_rules! TEMPERATURE_FORMAT { () => { "{:+.1}°C" }; }
 
-lazy_static! {
-    static ref DECIMAL_0: Decimal = Decimal::from(0);
-    static ref DECIMAL_1: Decimal = Decimal::from(1);
-    static ref DECIMAL_100: Decimal = Decimal::from(100);
-}
-
 // prefer /run, but /tmp is fine too
 lazy_static! {
     static ref TEMP_DIR: path::PathBuf = {
@@ -130,11 +124,9 @@ fn cpu_freq_icon(cpu_no: &str) -> io::Result<String> {
 }
 
 fn format_amount(mantissa: Decimal) -> String {
-    let is_round = mantissa.round_dp(3).fract() == *DECIMAL_0;
-
-    if !is_round && mantissa < *DECIMAL_1 {
+    if mantissa < Decimal::ONE && mantissa != Decimal::ZERO {
         format!("{:.2}", mantissa)
-    } else if !is_round && mantissa < *DECIMAL_100 {
+    } else if mantissa < Decimal::ONE_HUNDRED && mantissa.fract() != Decimal::ZERO {
         format!("{:.1}", mantissa)
     } else {
         format!("{:.0}", mantissa)
@@ -377,7 +369,7 @@ pub const CPU:StaticIconCommand = StaticIconCommand {
                                             format!(
                                                 "{}{:.0}%",
                                                 cpu_freq_icon(cpu_no).unwrap_or("".to_string()),
-                                                *DECIMAL_100 * (used - old_used) / (total - old_total)
+                                                Decimal::ONE_HUNDRED * (used - old_used) / (total - old_total)
                                             )
                                         } else {
                                             "?".to_string()
@@ -788,7 +780,7 @@ mod tests {
     #[test]
     fn amount_format_ten_plus() {
         let formatted = format_amount(Decimal::new(1000001, 5));
-        assert_eq!(formatted, "10");
+        assert_eq!(formatted, "10.0");
     }
 
     #[test]
@@ -813,6 +805,12 @@ mod tests {
     fn amount_format_huge() {
         let formatted = format_amount(Decimal::new(123749089, 2));
         assert_eq!(formatted, "1237490");
+    }
+
+    #[test]
+    fn amount_format_near_boundary() {
+        let formatted = format_amount(Decimal::from(1073750016) / Decimal::from(1 << 30));
+        assert_eq!(formatted, "1.0");
     }
 
     #[test]
@@ -854,13 +852,13 @@ mod tests {
     #[test]
     fn two_amounts_mega_extreme_asym() {
         let formatted = format_two_amounts(123289, 23899999999, "O");
-        assert_eq!(formatted, "0O22.2G");
+        assert_eq!(formatted, "0.00O22.2G");
     }
 
     #[test]
     fn two_amounts_first_larger() {
         let formatted = format_two_amounts(23899999999, 123289, "lol");
-        assert_eq!(formatted, "22.2lol0G");
+        assert_eq!(formatted, "22.2lol0.00G");
     }
 
     #[test]
