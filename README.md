@@ -6,6 +6,6 @@ The name is an abbreviation of Li(nux) + Mon(itor), and „lemon“ in Russian.
 
 Requires `libsensors`.
 
-The `ATA_HDDTEMP` command requires root permissions to work.
+The `ATA_HDDTEMP` and `RADEON_VRAM` commands require root permissions to work.
 
 Some icons require `Font Awesome` to be installed.

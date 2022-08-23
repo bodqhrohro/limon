@@ -17,7 +17,6 @@ use std::io;
 use std::io::Write;
 use std::str::FromStr;
 use std::collections::BTreeMap;
-use std::process;
 use std::mem;
 use std::ffi::CString;
 
@@ -454,29 +453,23 @@ pub const RADEON_VRAM:StaticIconCommand = StaticIconCommand {
         // there's no too much contents (around 32 kB for me), so it's easier
         // to read it all rather than messing with LineReader and copying lines
         // crawled by it
-        let output = process::Command::new("sudo")
-            .args(&["cat", "/sys/kernel/debug/dri/0/radeon_vram_mm"])
-            .output();
+        if let Ok(stdout) = fs::read_to_string("/sys/kernel/debug/dri/0/radeon_vram_mm") {
+            let last_line = stdout.lines().last();
 
-        if let Ok(output) = output {
-            if let Ok(stdout) = std::str::from_utf8(&output.stdout) {
-                let last_line = stdout.lines().last();
+            if let Some(last_line) = last_line {
+                let a: Vec<&str> = last_line.split(" ").collect();
+                if a.len() >= 4 {
+                    if let Ok(result) = || -> Result<String, std::num::ParseIntError> {
+                        let used = usize::from_str(a[3])?;
 
-                if let Some(last_line) = last_line {
-                    let a: Vec<&str> = last_line.split(" ").collect();
-                    if a.len() >= 4 {
-                        if let Ok(result) = || -> Result<String, std::num::ParseIntError> {
-                            let used = usize::from_str(a[3])?;
+                        let mut total = a[1].to_string();
+                        // strip the comma
+                        total.pop();
+                        let total = usize::from_str(&total)?;
 
-                            let mut total = a[1].to_string();
-                            // strip the comma
-                            total.pop();
-                            let total = usize::from_str(&total)?;
-
-                            Ok(format_two_amounts(used * RADEON_VRAM_BLOCK_SIZE, total * RADEON_VRAM_BLOCK_SIZE, "/"))
-                        }() {
-                            return Some(result);
-                        }
+                        Ok(format_two_amounts(used * RADEON_VRAM_BLOCK_SIZE, total * RADEON_VRAM_BLOCK_SIZE, "/"))
+                    }() {
+                        return Some(result);
                     }
                 }
             }
