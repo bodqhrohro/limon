@@ -256,15 +256,12 @@ lazy_static! {
     static ref SENSORS: Sensors = Sensors::new();
 }
 fn get_chip_temperature(chip_name: &str, temperature_name: &str) -> Option<String> {
-    if let Ok(mut chip_iter) = (*SENSORS).detected_chips(chip_name) {
-        // just pick the first chip there
-        let chip = chip_iter.next();
-        if let Some(chip) = chip {
-            if let Some(feat) = chip.into_iter().find(|feat| feat.name() == temperature_name) {
-                if let Some(subfeat) = feat.get_subfeature(sensors::SubfeatureType::SENSORS_SUBFEATURE_TEMP_INPUT) {
-                    if let Ok(value) = subfeat.get_value() {
-                        return Some(format!(TEMPERATURE_FORMAT!(), value));
-                    }
+    let chip_name = chip_name.to_string();
+    if let Some(chip) = (*SENSORS).into_iter().find(|chip| chip.get_name().expect("") == chip_name) {
+        if let Some(feat) = chip.into_iter().find(|feat| feat.name() == temperature_name) {
+            if let Some(subfeat) = feat.get_subfeature(sensors::SubfeatureType::SENSORS_SUBFEATURE_TEMP_INPUT) {
+                if let Ok(value) = subfeat.get_value() {
+                    return Some(format!(TEMPERATURE_FORMAT!(), value));
                 }
             }
         }
