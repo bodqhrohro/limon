@@ -20,6 +20,7 @@ pub fn main() {
         CommandAndArgs{command: &commands::Command::Static(commands::RADEON_TEMPERATURE), args: &[]},
         CommandAndArgs{command: &commands::Command::Static(commands::AMD_K10_TEMPERATURE), args: &[]},
         CommandAndArgs{command: &commands::Command::Static(commands::ATA_HDDTEMP), args: &["/dev/sda"]},
+        CommandAndArgs{command: &commands::Command::Static(commands::ATA_GSENSE_ERROR_RATE), args: &["/dev/sda"]},
         CommandAndArgs{command: &commands::Command::Static(commands::NETWORK_SPEED), args: &wireless_interface},
         CommandAndArgs{command: &commands::Command::Static(commands::WIRELESS_SIGNAL), args: &wireless_interface},
         CommandAndArgs{command: &commands::Command::Static(commands::DISK_IO_SPEED), args: &["sda"]},

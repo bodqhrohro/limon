@@ -16,6 +16,7 @@ use std::path;
 use std::io;
 use std::io::Write;
 use std::str::FromStr;
+use std::convert::TryInto;
 use std::collections::BTreeMap;
 use std::mem;
 use std::ffi::CString;
@@ -143,7 +144,7 @@ lazy_static! {
         map
     };
 }
-fn format_two_amounts(a1: usize, a2: usize, separator: &str) -> String {
+fn format_two_amounts(a1: usize, a2: usize, separator: &str, bytes: bool) -> String {
     let bearer = std::cmp::max(a1, a2);
 
     let mut bearer_ceil = &10;
@@ -157,7 +158,7 @@ fn format_two_amounts(a1: usize, a2: usize, separator: &str) -> String {
 
     let bearer_suffix = match BYTE_SUFFIX_MAP.get(bearer_ceil) {
         Some(suffix) => suffix,
-        None => "B"
+        None => if bytes { "B" } else { "" }
     };
 
     let bearer_ceil = Decimal::from(bearer_ceil / 10);
@@ -402,7 +403,7 @@ pub const MEM:StaticIconCommand = StaticIconCommand {
                 let mem_available = meminfo.mem_available.unwrap_or(0) as usize;
                 let mem_total = meminfo.mem_total as usize;
 
-                Some(format_two_amounts(mem_total - mem_available, mem_total, "/"))
+                Some(format_two_amounts(mem_total - mem_available, mem_total, "/", true))
             },
             Err(_) => None,
         }
@@ -437,7 +438,7 @@ pub const ZRAM:StaticIconCommand = StaticIconCommand {
                     }
                 }
 
-                Some(format_two_amounts(total_comp, (swap_total - swap_free) as usize, ":"))
+                Some(format_two_amounts(total_comp, (swap_total - swap_free) as usize, ":", true))
             },
             Err(_) => None,
         }
@@ -467,7 +468,7 @@ pub const RADEON_VRAM:StaticIconCommand = StaticIconCommand {
                         total.pop();
                         let total = usize::from_str(&total)?;
 
-                        Ok(format_two_amounts(used * RADEON_VRAM_BLOCK_SIZE, total * RADEON_VRAM_BLOCK_SIZE, "/"))
+                        Ok(format_two_amounts(used * RADEON_VRAM_BLOCK_SIZE, total * RADEON_VRAM_BLOCK_SIZE, "/", true))
                     }() {
                         return Some(result);
                     }
@@ -491,7 +492,7 @@ pub const TRAFFIC:StaticIconCommand = StaticIconCommand {
         let traffic = fetch_traffic_cached(args[0]);
 
         match traffic {
-            Ok(traffic) => Some(format_two_amounts(traffic.rx, traffic.tx, ":")),
+            Ok(traffic) => Some(format_two_amounts(traffic.rx, traffic.tx, ":", true)),
             Err(msg) => Some(msg)
         }
     },
@@ -522,7 +523,7 @@ pub const NETWORK_SPEED:StaticIconCommand = StaticIconCommand {
                             let old_tx = usize::from_str(old_state[1])?;
 
                             // TODO: fix a possible panic here
-                            Ok(format_two_amounts(new_rx - old_rx, new_tx - old_tx, ":"))
+                            Ok(format_two_amounts(new_rx - old_rx, new_tx - old_tx, ":", true))
                         }() {
                             return Some(result);
                         }
@@ -584,6 +585,36 @@ pub const ATA_HDDTEMP:StaticIconCommand = StaticIconCommand {
     },
     pre_spaces: 0,
     post_spaces: 3,
+};
+
+const GSENSE_ERROR_RATE: u8 = 191;
+pub const ATA_GSENSE_ERROR_RATE:StaticIconCommand = StaticIconCommand {
+    icon: '',
+    call: |args| {
+        if args.len() < 1 {
+            return None;
+        }
+
+        if let Ok(device) = hdd::device::linux::Device::open(args[0]) {
+            let ata_device = ATADevice::new(SCSIDevice::new(device));
+            if let Ok(attrs) = ata_device.get_smart_attributes(&None) {
+                if let Some(attr) = attrs.iter().find(|attr| attr.id == GSENSE_ERROR_RATE) {
+                    return match attr.raw {
+                        // two packed uint16
+                        HDDRaw::Raw64(raw) => {
+                            let raw: usize = raw.try_into().unwrap();
+                            return Some(format_two_amounts((raw >> 16) & 0xffff, raw & 0xffff, ":", false))
+                        },
+                        _ => None
+                    }
+                }
+            }
+        }
+
+        None
+    },
+    pre_spaces: 1,
+    post_spaces: 4,
 };
 
 pub const WIRELESS_SIGNAL:StaticIconCommand = StaticIconCommand {
@@ -650,7 +681,7 @@ pub const DISK_IO_SPEED:StaticIconCommand = StaticIconCommand {
                             let old_read_bytes = usize::from_str(old_state[0])?;
                             let old_written_bytes = usize::from_str(old_state[1])?;
 
-                            Ok(format_two_amounts(read_bytes - old_read_bytes, written_bytes - old_written_bytes, ":"))
+                            Ok(format_two_amounts(read_bytes - old_read_bytes, written_bytes - old_written_bytes, ":", true))
                         }() {
                             return Some(result);
                         }
@@ -686,7 +717,7 @@ pub const FS_FREE:StaticIconCommand = StaticIconCommand {
                     let free = blocksize * (statvfs.f_bavail as usize);
                     let total = blocksize * (statvfs.f_blocks as usize);
 
-                    return Some(format_two_amounts(free, total, "/"));
+                    return Some(format_two_amounts(free, total, "/", true));
                 }
             }
         }
@@ -805,49 +836,55 @@ mod tests {
 
     #[test]
     fn two_amounts_bytes() {
-        let formatted = format_two_amounts(3, 687, "/");
+        let formatted = format_two_amounts(3, 687, "/", true);
         assert_eq!(formatted, "3/687B");
     }
 
     #[test]
     fn two_amounts_zero() {
-        let formatted = format_two_amounts(0, 0, ":");
+        let formatted = format_two_amounts(0, 0, ":", true);
         assert_eq!(formatted, "0:0B");
     }
 
     #[test]
+    fn two_amounts_zero_nobytes() {
+        let formatted = format_two_amounts(0, 0, ":", false);
+        assert_eq!(formatted, "0:0");
+    }
+
+    #[test]
     fn two_amounts_zero_of_more() {
-        let formatted = format_two_amounts(0, 102938, "'");
+        let formatted = format_two_amounts(0, 102938, "'", true);
         assert_eq!(formatted, "0'100K");
     }
 
     #[test]
     fn two_amounts_mega() {
-        let formatted = format_two_amounts(1232899, 2389999, "=");
+        let formatted = format_two_amounts(1232899, 2389999, "=", false);
         assert_eq!(formatted, "1204=2333K");
     }
 
     #[test]
     fn two_amounts_mega_slight_asym() {
-        let formatted = format_two_amounts(1232899, 23899999, "⁚");
+        let formatted = format_two_amounts(1232899, 23899999, "⁚", false);
         assert_eq!(formatted, "1.1⁚22.7M");
     }
 
     #[test]
     fn two_amounts_mega_very_asym() {
-        let formatted = format_two_amounts(123289, 23899999, r"\");
+        let formatted = format_two_amounts(123289, 23899999, r"\", false);
         assert_eq!(formatted, r"0.11\22.7M");
     }
 
     #[test]
     fn two_amounts_mega_extreme_asym() {
-        let formatted = format_two_amounts(123289, 23899999999, "O");
+        let formatted = format_two_amounts(123289, 23899999999, "O", true);
         assert_eq!(formatted, "0.00O22.2G");
     }
 
     #[test]
     fn two_amounts_first_larger() {
-        let formatted = format_two_amounts(23899999999, 123289, "lol");
+        let formatted = format_two_amounts(23899999999, 123289, "lol", true);
         assert_eq!(formatted, "22.2lol0.00G");
     }
 
