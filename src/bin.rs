@@ -1,4 +1,7 @@
 extern crate limonlib;
+extern crate arguments;
+
+use std::env;
 
 use limonlib::{LimonItem, exec_command, commands};
 
@@ -8,6 +11,9 @@ struct CommandAndArgs<'a> {
 }
 
 pub fn main() {
+    let args = env::args();
+    let args = arguments::parse(args).unwrap();
+
     let wireless_interface = ["wlan0"];
 
     let cmds = vec![
@@ -34,5 +40,9 @@ pub fn main() {
         _ => None,
     };
 
-    limonlib::output_pango(results, 12, bar);
+    if args.get::<bool>("pango") == Some(true) {
+        limonlib::output_pango(results, 12, bar);
+    } else {
+        limonlib::output_plain(results);
+    }
 }

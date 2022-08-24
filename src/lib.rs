@@ -32,11 +32,15 @@ pub fn output_pango(items: Vec<LimonItem>, font_size: u16, bar: Option<u8>) -> S
 
 fn output(mode: OutputMode, items: Vec<LimonItem>, font_size: Option<u16>, bar: Option<u8>) -> String {
     let mut text = join(items.iter().map(|item| {
+        let (pre_spaces, post_spaces) = match mode {
+            OutputMode::PLAIN => (0, 2),
+            OutputMode::PANGO => (item.pre_spaces, item.post_spaces),
+        };
         format!(
             "{:<width$}{}\n",
-            format!("{:>width$}", item.icon, width = item.pre_spaces + ICON_WIDTH),
+            format!("{:>width$}", item.icon, width = pre_spaces + ICON_WIDTH),
             item.value,
-            width = item.post_spaces + ICON_WIDTH + item.pre_spaces,
+            width = post_spaces + ICON_WIDTH + pre_spaces,
         )
     }), &"");
 
