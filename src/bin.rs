@@ -31,6 +31,7 @@ pub fn main() {
         CommandAndArgs{command: &commands::Command::Static(commands::WIRELESS_SIGNAL), args: &wireless_interface},
         CommandAndArgs{command: &commands::Command::Static(commands::DISK_IO_SPEED), args: &["sda"]},
         CommandAndArgs{command: &commands::Command::Static(commands::FS_FREE), args: &["/"]},
+        CommandAndArgs{command: &commands::Command::Static(commands::UPS_VOLTAGE), args: &["nutdev"]},
         CommandAndArgs{command: &commands::Command::Dynamic(commands::BATTERY), args: &[]},
     ];
 

@@ -34,6 +34,8 @@ use hdd::scsi::SCSIDevice;
 use hdd::ata::misc::Misc;
 use hdd::ata::data::attr::raw::Raw as HDDRaw;
 use itertools::free::join;
+use rups::blocking::Connection;
+use rups::ConfigBuilder;
 
 pub struct StaticIconCommand
 {
@@ -726,6 +728,28 @@ pub const FS_FREE:StaticIconCommand = StaticIconCommand {
     },
     pre_spaces: 0,
     post_spaces: 2,
+};
+
+pub const UPS_VOLTAGE:StaticIconCommand = StaticIconCommand {
+    icon: '',
+    call: |args| {
+        if args.len() < 1 {
+            return None;
+        }
+
+        let config = ConfigBuilder::new().build();
+        if let Ok(mut conn) = Connection::new(&config) {
+           if let Ok(rups::Variable::Other((_, input_voltage))) = conn.get_var(args[0], "input.voltage") {
+               if let Ok(rups::Variable::Other((_, output_voltage))) = conn.get_var(args[0], "output.voltage") {
+                   return Some(format!("{}→{}V", input_voltage.split(".").next()?, output_voltage.split(".").next()?));
+               }
+           }
+        }
+
+        None
+    },
+    pre_spaces: 0,
+    post_spaces: 3,
 };
 
 pub const BATTERY:DynamicIconCommand = DynamicIconCommand {
