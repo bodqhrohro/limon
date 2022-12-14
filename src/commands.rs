@@ -136,7 +136,7 @@ fn format_amount(mantissa: Decimal) -> String {
 }
 
 lazy_static! {
-    static ref BYTE_SUFFIX_MAP: BTreeMap<usize, &'static str> = {
+    static ref BYTE_SUFFIX_MAP: BTreeMap<u64, &'static str> = {
         let mut map = BTreeMap::new();
         map.insert(10 * (1 << 10), "K");
         map.insert(10 * (1 << 20), "M");
@@ -146,7 +146,7 @@ lazy_static! {
         map
     };
 }
-fn format_two_amounts(a1: usize, a2: usize, separator: &str, bytes: bool) -> String {
+fn format_two_amounts(a1: u64, a2: u64, separator: &str, bytes: bool) -> String {
     let bearer = std::cmp::max(a1, a2);
 
     let mut bearer_ceil = &10;
@@ -171,8 +171,8 @@ fn format_two_amounts(a1: usize, a2: usize, separator: &str, bytes: bool) -> Str
 
 #[derive(Clone)]
 struct Traffic {
-    rx: usize,
-    tx: usize,
+    rx: u64,
+    tx: u64,
     rx_string: String,
     tx_string: String,
     iface: String,
@@ -192,8 +192,8 @@ fn fetch_traffic(iface: &str) -> MaybeTraffic {
                 trim_trailing_newline(&mut tx_string);
 
                 if let Ok(result) = || -> Result<Traffic, std::num::ParseIntError> {
-                    let rx = usize::from_str(&rx_string)?;
-                    let tx = usize::from_str(&tx_string)?;
+                    let rx = u64::from_str(&rx_string)?;
+                    let tx = u64::from_str(&tx_string)?;
 
                     Ok(Traffic {
                         rx: rx,
@@ -402,8 +402,8 @@ pub const MEM:StaticIconCommand = StaticIconCommand {
     call: |_| {
         match &*MEMINFO {
             Ok(meminfo) => {
-                let mem_available = meminfo.mem_available.unwrap_or(0) as usize;
-                let mem_total = meminfo.mem_total as usize;
+                let mem_available = meminfo.mem_available.unwrap_or(0) as u64;
+                let mem_total = meminfo.mem_total as u64;
 
                 Some(format_two_amounts(mem_total - mem_available, mem_total, "/", true))
             },
@@ -422,14 +422,14 @@ pub const ZRAM:StaticIconCommand = StaticIconCommand {
                 let swap_free = meminfo.swap_free;
                 let swap_total = meminfo.swap_total;
 
-                let mut total_comp: usize = 0;
+                let mut total_comp: u64 = 0;
 
                 for i in 0.. {
                     match fs::read_to_string("/sys/devices/virtual/block/zram".to_string() + &i.to_string() + "/mm_stat") {
                         Ok(contents) => {
                             let a: Vec<&str> = contents.split(" ").collect();
                             if a.len() >= 2 {
-                                if let Ok(comp) = usize::from_str(a[1]) {
+                                if let Ok(comp) = u64::from_str(a[1]) {
                                     total_comp += comp;
                                 }
                             }
@@ -440,7 +440,7 @@ pub const ZRAM:StaticIconCommand = StaticIconCommand {
                     }
                 }
 
-                Some(format_two_amounts(total_comp, (swap_total - swap_free) as usize, ":", true))
+                Some(format_two_amounts(total_comp, (swap_total - swap_free) as u64, ":", true))
             },
             Err(_) => None,
         }
@@ -449,7 +449,7 @@ pub const ZRAM:StaticIconCommand = StaticIconCommand {
     post_spaces: 3,
 };
 
-const RADEON_VRAM_BLOCK_SIZE: usize = 4096;
+const RADEON_VRAM_BLOCK_SIZE: u64 = 4096;
 pub const RADEON_VRAM:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |_| {
@@ -463,12 +463,12 @@ pub const RADEON_VRAM:StaticIconCommand = StaticIconCommand {
                 let a: Vec<&str> = last_line.split(" ").collect();
                 if a.len() >= 4 {
                     if let Ok(result) = || -> Result<String, std::num::ParseIntError> {
-                        let used = usize::from_str(a[3])?;
+                        let used = u64::from_str(a[3])?;
 
                         let mut total = a[1].to_string();
                         // strip the comma
                         total.pop();
-                        let total = usize::from_str(&total)?;
+                        let total = u64::from_str(&total)?;
 
                         Ok(format_two_amounts(used * RADEON_VRAM_BLOCK_SIZE, total * RADEON_VRAM_BLOCK_SIZE, "/", true))
                     }() {
@@ -521,8 +521,8 @@ pub const NETWORK_SPEED:StaticIconCommand = StaticIconCommand {
                         if let Ok(result) = || -> Result<String, std::num::ParseIntError> {
                             let new_rx = traffic.rx;
                             let new_tx = traffic.tx;
-                            let old_rx = usize::from_str(old_state[0])?;
-                            let old_tx = usize::from_str(old_state[1])?;
+                            let old_rx = u64::from_str(old_state[0])?;
+                            let old_tx = u64::from_str(old_state[1])?;
 
                             // TODO: fix a possible panic here
                             Ok(format_two_amounts(new_rx - old_rx, new_tx - old_tx, ":", true))
@@ -604,7 +604,7 @@ pub const ATA_GSENSE_ERROR_RATE:StaticIconCommand = StaticIconCommand {
                     return match attr.raw {
                         // two packed uint16
                         HDDRaw::Raw64(raw) => {
-                            let raw: usize = raw.try_into().unwrap();
+                            let raw: u64 = raw.try_into().unwrap();
                             return Some(format_two_amounts((raw >> 16) & 0xffff, raw & 0xffff, ":", false))
                         },
                         _ => None
@@ -659,7 +659,7 @@ pub const WIRELESS_SIGNAL:StaticIconCommand = StaticIconCommand {
     post_spaces: 3,
 };
 
-const LINUX_BLOCK_SIZE: usize = 512;
+const LINUX_BLOCK_SIZE: u64 = 512;
 pub const DISK_IO_SPEED:StaticIconCommand = StaticIconCommand {
     icon: '',
     call: |args| {
@@ -671,8 +671,8 @@ pub const DISK_IO_SPEED:StaticIconCommand = StaticIconCommand {
 
         if let Ok(diskstats) = procfs::diskstats() {
             if let Some(diskstat) = diskstats.iter().find(|diskstat| diskstat.name == args[0]) {
-                let read_bytes = diskstat.sectors_read * LINUX_BLOCK_SIZE;
-                let written_bytes = diskstat.sectors_written * LINUX_BLOCK_SIZE;
+                let read_bytes = (diskstat.sectors_read as u64) * LINUX_BLOCK_SIZE;
+                let written_bytes = (diskstat.sectors_written as u64) * LINUX_BLOCK_SIZE;
 
                 let new_state = format!("{} {}", read_bytes, written_bytes);
                 // save anyway, display only if there was an old state
@@ -680,8 +680,8 @@ pub const DISK_IO_SPEED:StaticIconCommand = StaticIconCommand {
                     let old_state: Vec<&str> = old_state.split(" ").collect();
                     if old_state.len() == 2 {
                         if let Ok(result) = || -> Result<String, std::num::ParseIntError> {
-                            let old_read_bytes = usize::from_str(old_state[0])?;
-                            let old_written_bytes = usize::from_str(old_state[1])?;
+                            let old_read_bytes = u64::from_str(old_state[0])?;
+                            let old_written_bytes = u64::from_str(old_state[1])?;
 
                             Ok(format_two_amounts(read_bytes - old_read_bytes, written_bytes - old_written_bytes, ":", true))
                         }() {
@@ -712,12 +712,12 @@ pub const FS_FREE:StaticIconCommand = StaticIconCommand {
                 let mut statvfs = mem::zeroed();
                 if libc::statvfs(c_fs_root.as_ptr(), &mut statvfs) >= 0 {
                     let blocksize = if statvfs.f_frsize != 0 {
-                        statvfs.f_frsize as usize
+                        statvfs.f_frsize as u64
                     } else {
-                        statvfs.f_bsize as usize
+                        statvfs.f_bsize as u64
                     };
-                    let free = blocksize * (statvfs.f_bavail as usize);
-                    let total = blocksize * (statvfs.f_blocks as usize);
+                    let free = blocksize * (statvfs.f_bavail as u64);
+                    let total = blocksize * (statvfs.f_blocks as u64);
 
                     return Some(format_two_amounts(free, total, "/", true));
                 }
