@@ -3,16 +3,9 @@ extern crate itertools;
 pub mod commands;
 pub mod utils;
 
-use utils::trim_trailing_newline;
-
 use itertools::free::join;
 
 const ICON_WIDTH: usize = 1;
-
-enum OutputMode {
-    PLAIN,
-    PANGO,
-}
 
 pub struct LimonItem {
     icon: char,
@@ -22,35 +15,31 @@ pub struct LimonItem {
     value: String,
 }
 
+macro_rules! format_icon { ($i:expr, $pre_spaces:expr) => { format!("{:>width$}", $i, width = $pre_spaces + ICON_WIDTH) } }
+
 pub fn output_plain(items: Vec<LimonItem>) -> String {
-    output(OutputMode::PLAIN, items, None, None)
+    let text = join(items.iter().map(|item| format!("{}\t{}\n", format_icon!(item.icon, item.pre_spaces), item.value)), &"");
+
+    print!("{}", text);
+
+    text
 }
 
-pub fn output_pango(items: Vec<LimonItem>, font_size: u16, bar: Option<u8>) -> String {
-    output(OutputMode::PANGO, items, Some(font_size), bar)
-}
-
-fn output(mode: OutputMode, items: Vec<LimonItem>, font_size: Option<u16>, bar: Option<u8>) -> String {
+pub fn output_pango(items: Vec<LimonItem>, icon_font_size: u16, text_font_size: u16, bar: Option<u8>) -> String {
     let mut text = join(items.iter().map(|item| {
-        let (pre_spaces, post_spaces) = match mode {
-            OutputMode::PLAIN => (0, 2),
-            OutputMode::PANGO => (item.pre_spaces, item.post_spaces),
-        };
         format!(
-            "{:<width$}{}\n",
-            format!("{:>width$}", item.icon, width = pre_spaces + ICON_WIDTH),
+            "<span font='FontAwesome {}'>{}</span>\t<span font='VCR OSD Mono {}'>{}</span>",
+            icon_font_size,
+            format_icon!(item.icon, item.pre_spaces),
+            text_font_size,
             item.value,
-            width = post_spaces + ICON_WIDTH + pre_spaces,
         )
-    }), &"");
+    }), &"\n");
 
-    if let OutputMode::PANGO = mode {
-        text.insert_str(0, &format!("<txt><span font='FontAwesome {}'>", font_size.expect("Font size not provided")));
-        trim_trailing_newline(&mut text);
-        text.push_str("</span></txt>");
-        if let Some(bar) = bar {
-            text.push_str(&format!("<bar>{}</bar>", bar));
-        }
+    text.insert_str(0, "<txt>");
+    text.push_str("</txt>");
+    if let Some(bar) = bar {
+        text.push_str(&format!("<bar>{}</bar>", bar));
     }
 
     print!("{}", text);
@@ -101,7 +90,7 @@ mod tests {
 
     #[test]
     fn output_pango_has_markup() {
-        let text = output_pango(_two_test_lines(), 12, None);
+        let text = output_pango(_two_test_lines(), 12, 11, None);
         let mut lines = text.lines();
         assert!(lines.next().unwrap().starts_with("<txt><span font='FontAwesome 12'>"));
         assert!(lines.next_back().unwrap().ends_with("</span></txt>"));
@@ -109,7 +98,7 @@ mod tests {
 
     #[test]
     fn output_pango_with_bar() {
-        let text = output_pango(_two_test_lines(), 12, Some(23));
+        let text = output_pango(_two_test_lines(), 12, 11, Some(23));
         let mut lines = text.lines();
         assert!(lines.next().unwrap().starts_with("<txt><span font='FontAwesome 12'>"));
         assert!(lines.next_back().unwrap().ends_with("</span></txt><bar>23</bar>"));
@@ -138,19 +127,18 @@ mod tests {
         let mut lines = text.lines();
 
         let space = Some(' ');
+        let tab = Some('\t');
 
         let mut line1 = lines.next().expect("No line 1").chars();
         assert_ne!(line1.next(), space);
-        assert_eq!(line1.next(), space);
-        assert_eq!(line1.nth(6), space);
+        assert_eq!(line1.next(), tab);
         assert_ne!(line1.next(), space);
         assert_ne!(line1.last(), space);
 
         let mut line2 = lines.next().expect("No line 2").chars();
         assert_eq!(line2.next(), space);
         assert_ne!(line2.next(), space);
-        assert_eq!(line2.next(), space);
-        assert_eq!(line2.nth(2), space);
+        assert_eq!(line2.next(), tab);
         assert_ne!(line2.next(), space);
         assert_ne!(line2.last(), space);
     }

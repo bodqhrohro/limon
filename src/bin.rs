@@ -42,7 +42,7 @@ pub fn main() {
     };
 
     if args.get::<bool>("pango") == Some(true) {
-        limonlib::output_pango(results, 12, bar);
+        limonlib::output_pango(results, 12, 11, bar);
     } else {
         limonlib::output_plain(results);
     }
