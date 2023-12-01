@@ -644,7 +644,7 @@ pub const WIRELESS_SIGNAL:StaticIconCommand = StaticIconCommand {
                                 }
 
                                 if let Ok(int_level) = level.parse::<i16>() {
-                                    return Some(format!("{}{}", show_dbms(int_level), level));
+                                    return Some(format!("{} {}", show_dbms(int_level), level));
                                 }
                             }
                         }
