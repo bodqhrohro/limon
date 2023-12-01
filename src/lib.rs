@@ -25,12 +25,13 @@ pub fn output_plain(items: Vec<LimonItem>) -> String {
     text
 }
 
-pub fn output_pango(items: Vec<LimonItem>, icon_font_size: u16, text_font_size: u16, bar: Option<u8>) -> String {
+pub fn output_pango(items: Vec<LimonItem>, icon_font_size: u16, text_font: &str, text_font_size: u16, bar: Option<u8>) -> String {
     let mut text = join(items.iter().map(|item| {
         format!(
-            "<span font='FontAwesome {}'>{}</span>\t<span font='VCR OSD Mono {}'>{}</span>",
+            "<span font='FontAwesome {}'>{}</span>\t<span font='{} {}'>{}</span>",
             icon_font_size,
             format_icon!(item.icon, item.pre_spaces),
+            text_font,
             text_font_size,
             item.value,
         )
@@ -90,7 +91,7 @@ mod tests {
 
     #[test]
     fn output_pango_has_markup() {
-        let text = output_pango(_two_test_lines(), 12, 11, None);
+        let text = output_pango(_two_test_lines(), 12, "Comic Sans", 11, None);
         let mut lines = text.lines();
         assert!(lines.next().unwrap().starts_with("<txt><span font='FontAwesome 12'>"));
         assert!(lines.next_back().unwrap().ends_with("</span></txt>"));
@@ -98,7 +99,7 @@ mod tests {
 
     #[test]
     fn output_pango_with_bar() {
-        let text = output_pango(_two_test_lines(), 12, 11, Some(23));
+        let text = output_pango(_two_test_lines(), 12, "Comic Sans", 11, Some(23));
         let mut lines = text.lines();
         assert!(lines.next().unwrap().starts_with("<txt><span font='FontAwesome 12'>"));
         assert!(lines.next_back().unwrap().ends_with("</span></txt><bar>23</bar>"));

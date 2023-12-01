@@ -42,7 +42,7 @@ pub fn main() {
     };
 
     if args.get::<bool>("pango") == Some(true) {
-        limonlib::output_pango(results, 12, 11, bar);
+        limonlib::output_pango(results, 12, "Unifont Bold", 12, bar);
     } else {
         limonlib::output_plain(results);
     }
