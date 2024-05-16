@@ -36,6 +36,7 @@ use hdd::ata::data::attr::raw::Raw as HDDRaw;
 use itertools::free::join;
 use rups::blocking::Connection;
 use rups::ConfigBuilder;
+use battery::units::power::watt;
 
 pub struct StaticIconCommand
 {
@@ -309,6 +310,18 @@ fn show_battery_icon(level: u8) -> char {
     }
 
     ''
+}
+
+fn get_battery() -> Option<battery::Battery> {
+    if let Ok(manager) = battery::Manager::new() {
+        if let Ok(mut batteries) = manager.batteries() {
+            if let Some(Ok(battery)) = batteries.next() {
+                return Some(battery);
+            }
+        }
+    }
+
+    None
 }
 
 
@@ -754,25 +767,37 @@ pub const UPS_VOLTAGE:StaticIconCommand = StaticIconCommand {
 
 pub const BATTERY:DynamicIconCommand = DynamicIconCommand {
     call: |_| {
-        if let Ok(manager) = battery::Manager::new() {
-            if let Ok(mut batteries) = manager.batteries() {
-                if let Some(Ok(battery)) = batteries.next() {
-                    let state = battery.state_of_charge();
-                    let int_state = (state.value * 100.0) as u8;
+        if let Some(battery) = get_battery() {
+            let state = battery.state_of_charge();
+            let int_state = (state.value * 100.0) as u8;
 
-                    return Some(DynamicIconCommandOutput {
-                        icon: show_battery_icon(int_state),
-                        text: format!("{} %", int_state),
-                        bar: Some(int_state),
-                        pre_spaces: 0,
-                        post_spaces: 2,
-                    });
-                }
-            }
+            return Some(DynamicIconCommandOutput {
+                icon: show_battery_icon(int_state),
+                text: format!("{} %", int_state),
+                bar: Some(int_state),
+                pre_spaces: 0,
+                post_spaces: 2,
+            });
         }
 
         None
     },
+};
+
+pub const BATTERY_POWER:StaticIconCommand = StaticIconCommand {
+    icon: '',
+    call: |_| {
+        if let Some(battery) = get_battery() {
+            let energy_rate = battery.energy_rate();
+            let energy_rate_watts = energy_rate.get::<watt>();
+
+            return Some(format!("{:.2}W", energy_rate_watts));
+        }
+
+        None
+    },
+    pre_spaces: 1,
+    post_spaces: 3,
 };
 
 #[cfg(test)]
