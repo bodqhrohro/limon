@@ -32,6 +32,7 @@ pub fn main() {
         CommandAndArgs{command: &commands::Command::Static(commands::DISK_IO_SPEED), args: &["nvme0n1p1"]},
         CommandAndArgs{command: &commands::Command::Static(commands::FS_FREE), args: &["/"]},
         // CommandAndArgs{command: &commands::Command::Static(commands::UPS_VOLTAGE), args: &["nutdev"]},
+        CommandAndArgs{command: &commands::Command::Static(commands::BATTERY_POWER), args: &[]},
         CommandAndArgs{command: &commands::Command::Dynamic(commands::BATTERY), args: &[]},
     ];
 
