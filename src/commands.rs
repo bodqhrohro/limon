@@ -37,6 +37,7 @@ use itertools::free::join;
 use rups::blocking::Connection;
 use rups::ConfigBuilder;
 use battery::units::power::watt;
+use battery::units::energy::watt_hour;
 
 pub struct StaticIconCommand
 {
@@ -770,10 +771,12 @@ pub const BATTERY:DynamicIconCommand = DynamicIconCommand {
         if let Some(battery) = get_battery() {
             let state = battery.state_of_charge();
             let int_state = (state.value * 100.0) as u8;
+            let energy = battery.energy();
+            let energy_full = battery.energy_full();
 
             return Some(DynamicIconCommandOutput {
                 icon: show_battery_icon(int_state),
-                text: format!("{} %", int_state),
+                text: format!("{:.1}/{:.1}Wh", energy.get::<watt_hour>(), energy_full.get::<watt_hour>()),
                 bar: Some(int_state),
                 pre_spaces: 0,
                 post_spaces: 2,
