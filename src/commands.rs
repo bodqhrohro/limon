@@ -793,8 +793,13 @@ pub const BATTERY_POWER:StaticIconCommand = StaticIconCommand {
         if let Some(battery) = get_battery() {
             let energy_rate = battery.energy_rate();
             let energy_rate_watts = energy_rate.get::<watt>();
+            let charge_indicator = match battery.state() {
+                battery::State::Charging => "+",
+                battery::State::Discharging => "-",
+                _ => "",
+            };
 
-            return Some(format!("{:.2}W", energy_rate_watts));
+            return Some(format!("{}{:.2}W", charge_indicator, energy_rate_watts));
         }
 
         None
